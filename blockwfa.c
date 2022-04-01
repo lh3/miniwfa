@@ -12,7 +12,7 @@ void bwf_opt_init(bwf_opt_t *opt)
 	opt->o2 = 24, opt->e2 = 1;
 }
 
-#define WF_NEG_INF 0x40000000
+#define WF_NEG_INF (-0x40000000)
 
 // Extend a diagonal along exact matches. This is a bottleneck and could be made faster with padding.
 static inline int32_t wf_extend1(int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t k, int32_t d)
@@ -128,7 +128,8 @@ static void wf_next(void *km, const bwf_opt_t *opt, bwf_stripe_t *wf, int32_t lo
 		E2[d] = wf_max(pHo[d+1], pE2[d+1]);
 		e = wf_max(E1[d], E2[d]);
 		h = wf_max(e, f);
-		H[d] = wf_max(pHx[d], h);
+		H[d] = wf_max(pHx[d] + 1, h);
+		fprintf(stderr, "s=%d, d=%d, H[d]=%d\n", wf->s, d, H[d]);
 	}
 }
 
@@ -144,8 +145,10 @@ int32_t bwf_wfa_score(void *km, const bwf_opt_t *opt, int32_t tl, const char *ts
 
 	while (1) {
 		int32_t d, *H = wf->a[wf->top].H;
+		fprintf(stderr, "s=%d, top=%d, [%d,%d]\n", wf->s, wf->top, wf->a[wf->top].lo, wf->a[wf->top].hi);
 		for (d = lo; d <= hi; ++d) {
 			int32_t k;
+			if (H[d] < -1 || H[d] + d < -1) continue;
 			k = wf_extend1(tl, ts, ql, qs, H[d], d);
 			if (k == tl - 1 && d + k == ql - 1)
 				break;
