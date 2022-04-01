@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "blockwfa.h"
 #include "kalloc.h"
 
@@ -57,15 +58,15 @@ void wf_stripe_add(void *km, bwf_stripe_t *wf, int32_t lo, int32_t hi)
 	f->lo = lo, f->hi = hi;
 	n = hi - lo + 1;
 	kfree(km, f->mem);
-	f->mem = (int32_t*)kmalloc(km, 20 * (n + m2));
+	f->mem = Kmalloc(km, int32_t, 5 * (n + m2));
 	f->H = f->mem + wf->max_pen;
-	f->E1 = f->H + m2;
-	f->E2 = f->E1 + m2;
-	f->F1 = f->E2 + m2;
-	f->F2 = f->F1 + m2;
-	for (i = 0; i < wf->max_pen; ++i)
+	f->E1 = f->H  + n + m2;
+	f->E2 = f->E1 + n + m2;
+	f->F1 = f->E2 + n + m2;
+	f->F2 = f->F1 + n + m2;
+	for (i = -wf->max_pen + 1; i < 0; ++i)
 		f->H[i] = f->E1[i] = f->E2[i] = f->F1[i] = f->F2[i] = WF_NEG_INF;
-	for (i = n + wf->max_pen; i < n + m2; ++i)
+	for (i = n; i < n + wf->max_pen; ++i)
 		f->H[i] = f->E1[i] = f->E2[i] = f->F1[i] = f->F2[i] = WF_NEG_INF;
 	f->H -= lo, f->E1 -= lo, f->E2 -= lo, f->F1 -= lo, f->F2 -= lo; // such that f->H[lo] points to 0
 }
@@ -74,9 +75,10 @@ static bwf_stripe_t *wf_stripe_init(void *km, int32_t max_pen)
 {
 	int32_t i;
 	bwf_stripe_t *wf;
-	wf = (bwf_stripe_t*)kcalloc(km, 1, sizeof(*wf));
+	wf = Kcalloc(km, bwf_stripe_t, 1);
 	wf->max_pen = max_pen;
 	wf->n = max_pen + 1;
+	wf->a = Kcalloc(km, bwf_slice_t, wf->n);
 	for (i = 0; i < wf->n; ++i) {
 		bwf_slice_t *f;
 		wf_stripe_add(km, wf, 0, 0);

@@ -14,12 +14,13 @@ int main(int argc, char *argv[])
 	kseq_t *ks1, *ks2;
 	ketopt_t o = KETOPT_INIT;
 	bwf_opt_t opt;
-	int c;
-	void *km;
+	int c, use_kalloc = 0;
+	void *km = 0;
 
 	bwf_opt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "", 0)) >= 0) {
-		if (1) {
+	while ((c = ketopt(&o, argc, argv, 1, "k", 0)) >= 0) {
+		if (o.opt == 'k') use_kalloc = 1;
+		else if (1) {
 			fprintf(stderr, "ERROR: unknown option\n");
 			return 1;
 		}
@@ -36,14 +37,14 @@ int main(int argc, char *argv[])
 	ks1 = kseq_init(fp1);
 	ks2 = kseq_init(fp2);
 
-	km = km_init();
+	km = use_kalloc? km_init() : 0;
 	while (kseq_read(ks1) >= 0 && kseq_read(ks2) >= 0) {
 		int32_t s;
 		s = bwf_wfa_score(km, &opt, ks1->seq.l, ks1->seq.s, ks2->seq.l, ks2->seq.s);
 		printf("%s\t%ld\t0\t%ld\t+\t%s\t%ld\t0\t%ld\t%d", ks1->name.s, ks1->seq.l, ks1->seq.l, ks2->name.s, ks2->seq.l, ks2->seq.l, s);
 		putchar('\n');
 	}
-	km_destroy(km);
+	if (use_kalloc) km_destroy(km);
 
 	kseq_destroy(ks1);
 	kseq_destroy(ks2);
