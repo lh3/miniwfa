@@ -47,6 +47,14 @@ typedef struct {
 	bwf_slice_t *a;
 } bwf_stripe_t;
 
+#if defined(__clang__)
+  #define PRAGMA_LOOP_VECTORIZE _Pragma("clang loop vectorize(enable)")
+#elif defined(__GNUC__)
+  #define PRAGMA_LOOP_VECTORIZE _Pragma("GCC ivdep")
+#else
+  #define PRAGMA_LOOP_VECTORIZE _Pragma("ivdep")
+#endif
+
 void wf_stripe_add(void *km, bwf_stripe_t *wf, int32_t lo, int32_t hi)
 {
 	int32_t i, n, m1 = wf->max_pen + 1, m2 = m1 * 2;
@@ -61,9 +69,9 @@ void wf_stripe_add(void *km, bwf_stripe_t *wf, int32_t lo, int32_t hi)
 	f->mem = Kmalloc(km, int32_t, 5 * (n + m2));
 	f->H = f->mem + m1;
 	f->E1 = f->H  + n + m2;
-	f->E2 = f->E1 + n + m2;
-	f->F1 = f->E2 + n + m2;
-	f->F2 = f->F1 + n + m2;
+	f->F1 = f->E1 + n + m2;
+	f->E2 = f->F1 + n + m2;
+	f->F2 = f->E2 + n + m2;
 	for (i = -m1 + 1; i < 0; ++i)
 		f->H[i] = f->E1[i] = f->E2[i] = f->F1[i] = f->F2[i] = WF_NEG_INF;
 	for (i = n; i < n + m1; ++i)
@@ -122,6 +130,7 @@ static void wf_next(void *km, const bwf_opt_t *opt, bwf_stripe_t *wf, int32_t lo
 	fe2 = wf_stripe_get(wf, opt->e2);
 	pHx = fx->H, pHo1 = fo1->H, pHo2 = fo2->H, pE1 = fe1->E1, pE2 = fe2->E2, pF1 = fe1->F1, pF2 = fe2->F2;
 	H = ft->H, E1 = ft->E1, E2 = ft->E2, F1 = ft->F1, F2 = ft->F2;
+	PRAGMA_LOOP_VECTORIZE
 	for (d = lo; d <= hi; ++d) {
 		int32_t h, f, e;
 		F1[d] = wf_max(pHo1[d-1], pF1[d-1]);
