@@ -18,8 +18,9 @@ int main(int argc, char *argv[])
 	void *km = 0;
 
 	bwf_opt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "K", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "cK", 0)) >= 0) {
 		if (o.opt == 'K') use_kalloc = !use_kalloc;
+		else if (o.opt == 'c') opt.flag |= BWF_F_CIGAR;
 		else if (1) {
 			fprintf(stderr, "ERROR: unknown option\n");
 			return 1;

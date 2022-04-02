@@ -2,6 +2,16 @@
 #include "blockwfa.h"
 #include "kalloc.h"
 
+#if defined(__clang__)
+  #define PRAGMA_LOOP_VECTORIZE _Pragma("clang loop vectorize(enable)")
+#elif defined(__GNUC__)
+  #define PRAGMA_LOOP_VECTORIZE _Pragma("GCC ivdep")
+#else
+  #define PRAGMA_LOOP_VECTORIZE _Pragma("ivdep")
+#endif
+
+#define WF_NEG_INF (-0x40000000)
+
 /*
  * Default setting
  */
@@ -11,8 +21,6 @@ void bwf_opt_init(bwf_opt_t *opt)
 	opt->o1 = 4, opt->e1 = 2;
 	opt->o2 = 24, opt->e2 = 1;
 }
-
-#define WF_NEG_INF (-0x40000000)
 
 // Extend a diagonal along exact matches. This is a bottleneck and could be made faster with padding.
 static inline int32_t wf_extend1(int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t k, int32_t d)
@@ -37,6 +45,35 @@ static inline int32_t wf_extend1(int32_t tl, const char *ts, int32_t ql, const c
 	return k;
 }
 
+/*
+ * Traceback array
+ */
+typedef struct {
+	int32_t lo, hi;
+	uint8_t *x;
+} bwf_tb1_t;
+
+typedef struct {
+	int32_t m, n;
+	bwf_tb1_t *a;
+} bwf_tb_t;
+
+static bwf_tb1_t *bwf_tb_add(void *km, bwf_tb_t *tb, int32_t lo, int32_t hi)
+{
+	bwf_tb1_t *p;
+	if (tb->n == tb->m) {
+		tb->m += (tb->m>>1) + 4;
+		tb->a = Krealloc(km, bwf_tb1_t, tb->a, tb->m);
+	}
+	p = &tb->a[tb->n++];
+	p->lo = lo, p->hi = hi;
+	p->x = Kcalloc(km, uint8_t, hi - lo + 1);
+	return p;
+}
+
+/*
+ * Core algorithm
+ */
 typedef struct {
 	int32_t lo, hi;
 	int32_t *mem, *H, *E1, *E2, *F1, *F2;
@@ -46,14 +83,6 @@ typedef struct {
 	int32_t s, top, n, max_pen;
 	bwf_slice_t *a;
 } bwf_stripe_t;
-
-#if defined(__clang__)
-  #define PRAGMA_LOOP_VECTORIZE _Pragma("clang loop vectorize(enable)")
-#elif defined(__GNUC__)
-  #define PRAGMA_LOOP_VECTORIZE _Pragma("GCC ivdep")
-#else
-  #define PRAGMA_LOOP_VECTORIZE _Pragma("ivdep")
-#endif
 
 void wf_stripe_add(void *km, bwf_stripe_t *wf, int32_t lo, int32_t hi)
 {
@@ -115,7 +144,7 @@ static inline bwf_slice_t *wf_stripe_get(bwf_stripe_t *wf, int32_t x)
 
 #define wf_max(a, b) ((a) >= (b)? (a) : (b))
 
-static void wf_next(void *km, const bwf_opt_t *opt, bwf_stripe_t *wf, int32_t lo, int32_t hi)
+static void wf_next_basic(void *km, const bwf_opt_t *opt, bwf_stripe_t *wf, bwf_tb_t *tb, int32_t lo, int32_t hi)
 {
 	int32_t *H, *E1, *E2, *F1, *F2, d;
 	const int32_t *pHx, *pHo1, *pHo2, *pE1, *pE2, *pF1, *pF2;
@@ -130,26 +159,54 @@ static void wf_next(void *km, const bwf_opt_t *opt, bwf_stripe_t *wf, int32_t lo
 	fe2 = wf_stripe_get(wf, opt->e2);
 	pHx = fx->H, pHo1 = fo1->H, pHo2 = fo2->H, pE1 = fe1->E1, pE2 = fe2->E2, pF1 = fe1->F1, pF2 = fe2->F2;
 	H = ft->H, E1 = ft->E1, E2 = ft->E2, F1 = ft->F1, F2 = ft->F2;
-	PRAGMA_LOOP_VECTORIZE
-	for (d = lo; d <= hi; ++d) {
-		int32_t h, f, e;
-		F1[d] = wf_max(pHo1[d-1], pF1[d-1]);
-		F2[d] = wf_max(pHo2[d-1], pF2[d-1]);
-		f = wf_max(F1[d], F2[d]);
-		E1[d] = wf_max(pHo1[d+1], pE1[d+1]) + 1;
-		E2[d] = wf_max(pHo2[d+1], pE2[d+1]) + 1;
-		e = wf_max(E1[d], E2[d]);
-		h = wf_max(e, f);
-		H[d] = wf_max(pHx[d] + 1, h);
-//		if (H[d] >= -1) fprintf(stderr, "s=%d, d=%d, k=%d, (%d,%d)\n", wf->s, d, H[d], E1[d], F1[d]);
+	if (!tb) {
+		PRAGMA_LOOP_VECTORIZE
+		for (d = lo; d <= hi; ++d) {
+			int32_t h, f, e;
+			F1[d] = wf_max(pHo1[d-1], pF1[d-1]);
+			F2[d] = wf_max(pHo2[d-1], pF2[d-1]);
+			f = wf_max(F1[d], F2[d]);
+			E1[d] = wf_max(pHo1[d+1], pE1[d+1]) + 1;
+			E2[d] = wf_max(pHo2[d+1], pE2[d+1]) + 1;
+			e = wf_max(E1[d], E2[d]);
+			h = wf_max(e, f);
+			H[d] = wf_max(pHx[d] + 1, h);
+			// if (H[d] >= -1) fprintf(stderr, "s=%d, d=%d, k=%d, (%d,%d)\n", wf->s, d, H[d], E1[d], F1[d]);
+		}
+	} else {
+		uint8_t *ax;
+		ax = bwf_tb_add(km, tb, lo, hi)->x - lo;
+		PRAGMA_LOOP_VECTORIZE
+		for (d = lo; d <= hi; ++d) {
+			int32_t h, f, e;
+			uint8_t x = 0, ze, zf, z;
+			x |= pHo1[d-1] >= pF1[d-1]? 0 : 0x10;
+			F1[d] = wf_max(pHo1[d-1], pF1[d-1]);
+			x |= pHo2[d-1] >= pF2[d-1]? 0 : 0x20;
+			F2[d] = wf_max(pHo2[d-1], pF2[d-1]);
+			zf = F1[d] >= F2[d]? 1 : 2;
+			f = wf_max(F1[d], F2[d]);
+			x |= pHo1[d+1] >= pE1[d+1]? 0 : 0x40;
+			E1[d] = wf_max(pHo1[d+1], pE1[d+1]) + 1;
+			x |= pHo2[d+1] >= pE2[d+1]? 0 : 0x80;
+			E2[d] = wf_max(pHo2[d+1], pE2[d+1]) + 1;
+			ze = E1[d] >= E2[d]? 3 : 4;
+			e = wf_max(E1[d], E2[d]);
+			z = e >= f? ze : zf;
+			h = wf_max(e, f);
+			z = pHx[d] + 1 >= h? 0 : z;
+			H[d] = wf_max(pHx[d] + 1, h);
+			ax[d] = x | z;
+		}
 	}
 }
 
 int32_t bwf_wfa_score(void *km, const bwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs)
 {
-	int32_t s, lo = 0, hi = 0;
+	int32_t s, j, lo = 0, hi = 0, is_tb = !!(opt->flag&BWF_F_CIGAR);
 	int32_t max_pen = opt->x;
 	bwf_stripe_t *wf;
+	bwf_tb_t tb = {0,0,0};
 
 	max_pen = max_pen > opt->o1 + opt->e1? max_pen : opt->o1 + opt->e1;
 	max_pen = max_pen > opt->o2 + opt->e2? max_pen : opt->o2 + opt->e2;
@@ -168,9 +225,11 @@ int32_t bwf_wfa_score(void *km, const bwf_opt_t *opt, int32_t tl, const char *ts
 		if (d <= hi) break;
 		if (lo > -tl) --lo;
 		if (hi < ql)  ++hi;
-		wf_next(km, opt, wf, lo, hi);
+		wf_next_basic(km, opt, wf, is_tb? &tb : 0, lo, hi);
 	}
 	s = wf->s;
+	for (j = 0; j < tb.n; ++j) kfree(km, tb.a[j].x);
+	kfree(km, tb.a);
 	wf_stripe_destroy(km, wf);
 	return s;
 }

@@ -3,8 +3,11 @@
 
 #include <stdint.h>
 
+#define BWF_F_CIGAR 0x1
+
 typedef struct {
 	int32_t x, o1, e1, o2, e2;
+	int32_t flag;
 } bwf_opt_t;
 
 void bwf_opt_init(bwf_opt_t *opt);
