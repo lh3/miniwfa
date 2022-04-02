@@ -49,7 +49,7 @@ typedef struct {
 
 void wf_stripe_add(void *km, bwf_stripe_t *wf, int32_t lo, int32_t hi)
 {
-	int32_t i, n, m2 = wf->max_pen * 2;
+	int32_t i, n, m1 = wf->max_pen + 1, m2 = m1 * 2;
 	bwf_slice_t *f;
 	++wf->s;
 	++wf->top;
@@ -59,14 +59,14 @@ void wf_stripe_add(void *km, bwf_stripe_t *wf, int32_t lo, int32_t hi)
 	n = hi - lo + 1;
 	kfree(km, f->mem);
 	f->mem = Kmalloc(km, int32_t, 5 * (n + m2));
-	f->H = f->mem + wf->max_pen;
+	f->H = f->mem + m1;
 	f->E1 = f->H  + n + m2;
 	f->E2 = f->E1 + n + m2;
 	f->F1 = f->E2 + n + m2;
 	f->F2 = f->F1 + n + m2;
-	for (i = -wf->max_pen + 1; i < 0; ++i)
+	for (i = -m1 + 1; i < 0; ++i)
 		f->H[i] = f->E1[i] = f->E2[i] = f->F1[i] = f->F2[i] = WF_NEG_INF;
-	for (i = n; i < n + wf->max_pen; ++i)
+	for (i = n; i < n + m1; ++i)
 		f->H[i] = f->E1[i] = f->E2[i] = f->F1[i] = f->F2[i] = WF_NEG_INF;
 	f->H -= lo, f->E1 -= lo, f->E2 -= lo, f->F1 -= lo, f->F2 -= lo; // such that f->H[lo] points to 0
 }
@@ -109,23 +109,26 @@ static inline bwf_slice_t *wf_stripe_get(bwf_stripe_t *wf, int32_t x)
 
 static void wf_next(void *km, const bwf_opt_t *opt, bwf_stripe_t *wf, int32_t lo, int32_t hi)
 {
-	int32_t *pHx, *pHo, *pE1, *pE2, *pF1, *pF2;
 	int32_t *H, *E1, *E2, *F1, *F2, d;
-	const bwf_slice_t *fx, *fo, *fe, *ft;
+	const int32_t *pHx, *pHo1, *pHo2, *pE1, *pE2, *pF1, *pF2;
+	const bwf_slice_t *fx, *fo1, *fo2, *fe1, *fe2;
+	bwf_slice_t *ft;
 	wf_stripe_add(km, wf, lo, hi);
-	ft = &wf->a[wf->top];
-	fx = wf_stripe_get(wf, opt->x);
-	fo = wf_stripe_get(wf, opt->o1 + opt->e1);
-	fe = wf_stripe_get(wf, opt->e1);
-	pHx = fx->H, pHo = fo->H, pE1 = fe->E1, pE2 = fe->E2, pF1 = fe->F1, pF2 = fe->F2;
+	ft  = &wf->a[wf->top];
+	fx  = wf_stripe_get(wf, opt->x);
+	fo1 = wf_stripe_get(wf, opt->o1 + opt->e1);
+	fo2 = wf_stripe_get(wf, opt->o2 + opt->e2);
+	fe1 = wf_stripe_get(wf, opt->e1);
+	fe2 = wf_stripe_get(wf, opt->e2);
+	pHx = fx->H, pHo1 = fo1->H, pHo2 = fo2->H, pE1 = fe1->E1, pE2 = fe2->E2, pF1 = fe1->F1, pF2 = fe2->F2;
 	H = ft->H, E1 = ft->E1, E2 = ft->E2, F1 = ft->F1, F2 = ft->F2;
 	for (d = lo; d <= hi; ++d) {
 		int32_t h, f, e;
-		F1[d] = wf_max(pHo[d-1], pF1[d-1]);
-		F2[d] = wf_max(pHo[d-1], pF2[d-1]);
+		F1[d] = wf_max(pHo1[d-1], pF1[d-1]);
+		F2[d] = wf_max(pHo2[d-1], pF2[d-1]);
 		f = wf_max(F1[d], F2[d]);
-		E1[d] = wf_max(pHo[d+1], pE1[d+1]) + 1;
-		E2[d] = wf_max(pHo[d+1], pE2[d+1]) + 1;
+		E1[d] = wf_max(pHo1[d+1], pE1[d+1]) + 1;
+		E2[d] = wf_max(pHo2[d+1], pE2[d+1]) + 1;
 		e = wf_max(E1[d], E2[d]);
 		h = wf_max(e, f);
 		H[d] = wf_max(pHx[d] + 1, h);
