@@ -121,15 +121,15 @@ static void wf_next(void *km, const bwf_opt_t *opt, bwf_stripe_t *wf, int32_t lo
 	H = ft->H, E1 = ft->E1, E2 = ft->E2, F1 = ft->F1, F2 = ft->F2;
 	for (d = lo; d <= hi; ++d) {
 		int32_t h, f, e;
-		F1[d] = wf_max(pHo[d-1], pF1[d-1]) + 1;
-		F2[d] = wf_max(pHo[d-1], pF2[d-1]) + 1;
+		F1[d] = wf_max(pHo[d-1], pF1[d-1]);
+		F2[d] = wf_max(pHo[d-1], pF2[d-1]);
 		f = wf_max(F1[d], F2[d]);
-		E1[d] = wf_max(pHo[d+1], pE1[d+1]);
-		E2[d] = wf_max(pHo[d+1], pE2[d+1]);
+		E1[d] = wf_max(pHo[d+1], pE1[d+1]) + 1;
+		E2[d] = wf_max(pHo[d+1], pE2[d+1]) + 1;
 		e = wf_max(E1[d], E2[d]);
 		h = wf_max(e, f);
 		H[d] = wf_max(pHx[d] + 1, h);
-		fprintf(stderr, "s=%d, d=%d, H[d]=%d\n", wf->s, d, H[d]);
+//		if (H[d] >= -1) fprintf(stderr, "s=%d, d=%d, k=%d, (%d,%d)\n", wf->s, d, H[d], E1[d], F1[d]);
 	}
 }
 
@@ -145,10 +145,9 @@ int32_t bwf_wfa_score(void *km, const bwf_opt_t *opt, int32_t tl, const char *ts
 
 	while (1) {
 		int32_t d, *H = wf->a[wf->top].H;
-		fprintf(stderr, "s=%d, top=%d, [%d,%d]\n", wf->s, wf->top, wf->a[wf->top].lo, wf->a[wf->top].hi);
 		for (d = lo; d <= hi; ++d) {
 			int32_t k;
-			if (H[d] < -1 || H[d] + d < -1) continue;
+			if (H[d] < -1) continue;
 			k = wf_extend1(tl, ts, ql, qs, H[d], d);
 			if (k == tl - 1 && d + k == ql - 1)
 				break;
