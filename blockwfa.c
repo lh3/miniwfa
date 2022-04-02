@@ -91,7 +91,7 @@ static bwf_stripe_t *wf_stripe_init(void *km, int32_t max_pen)
 		bwf_slice_t *f;
 		wf_stripe_add(km, wf, 0, 0);
 		f = &wf->a[wf->top];
-		f->H[0] = f->E1[0] = f->E2[0] = f->F1[0] = f->F2[0];
+		f->H[0] = f->E1[0] = f->E2[0] = f->F1[0] = f->F2[0] = WF_NEG_INF;
 	}
 	wf->s = 0;
 	wf->a[wf->top].H[0] = -1;

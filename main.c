@@ -14,12 +14,12 @@ int main(int argc, char *argv[])
 	kseq_t *ks1, *ks2;
 	ketopt_t o = KETOPT_INIT;
 	bwf_opt_t opt;
-	int c, use_kalloc = 0;
+	int c, use_kalloc = 1;
 	void *km = 0;
 
 	bwf_opt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "k", 0)) >= 0) {
-		if (o.opt == 'k') use_kalloc = 1;
+	while ((c = ketopt(&o, argc, argv, 1, "K", 0)) >= 0) {
+		if (o.opt == 'K') use_kalloc = !use_kalloc;
 		else if (1) {
 			fprintf(stderr, "ERROR: unknown option\n");
 			return 1;
