@@ -247,10 +247,10 @@ static void wf_next_basic(void *km, void *km_tb, const mwf_opt_t *opt, wf_stripe
 	}
 }
 
-static uint32_t *wf_traceback(void *km, const mwf_opt_t *opt, wf_tb_t *tb, int32_t t_end, const char *ts, int32_t q_end, const char *qs, int32_t *n_cigar)
+static uint32_t *wf_traceback(void *km, const mwf_opt_t *opt, wf_tb_t *tb, int32_t t_end, const char *ts, int32_t q_end, const char *qs, int32_t last, int32_t *n_cigar)
 { // adapted from ksw_backtrack() from ksw2
 	wf_cigar_t cigar = {0,0,0};
-	int32_t i = q_end, k = t_end, s = tb->n - 1, last = 0;
+	int32_t i = q_end, k = t_end, s = tb->n - 1;
 	while (i >= 0 && k >= 0) {
 		int32_t k0 = k, j, x, state, ext;
 		if (last == 0) { // if the previous state is 0, check exact matches
@@ -299,14 +299,14 @@ static uint32_t *wf_traceback(void *km, const mwf_opt_t *opt, wf_tb_t *tb, int32
 
 void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
 {
-	int32_t lo = 0, hi = 0, is_tb = !!(opt->flag&MWF_F_CIGAR);
-	int32_t max_pen = opt->x;
+	int32_t lo = 0, hi = 0, max_pen, is_tb = !!(opt->flag&MWF_F_CIGAR), last_state = 0;
 	wf_stripe_t *wf;
 	wf_tb_t tb = {0,0,0};
 	void *km_tb;
 
 	memset(r, 0, sizeof(*r));
 	km_tb = is_tb? km_init2(km, 8000000) : 0; // this is slightly smaller than the kalloc block size
+	max_pen = opt->x;
 	max_pen = max_pen > opt->o1 + opt->e1? max_pen : opt->o1 + opt->e1;
 	max_pen = max_pen > opt->o2 + opt->e2? max_pen : opt->o2 + opt->e2;
 	wf = wf_stripe_init(km, max_pen);
@@ -317,8 +317,11 @@ void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, i
 			int32_t k;
 			if (H[d] < -1 || d + H[d] < -1) continue;
 			k = wf_extend1(tl, ts, ql, qs, H[d], d);
-			if (k == tl - 1 && d + k == ql - 1)
+			if (k == tl - 1 && d + k == ql - 1) {
+				if (k == H[d] && is_tb)
+					last_state = tb.a[tb.n-1].x[d - tb.a[tb.n-1].lo] & 7;
 				break;
+			}
 			H[d] = k;
 		}
 		if (d <= hi) break;
@@ -333,7 +336,7 @@ void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, i
 		fprintf(stderr, "cap=%ld, avail=%ld, n_blks=%ld\n", st.capacity, st.available, st.n_blocks);
 	}
 	if (is_tb) {
-		r->cigar = wf_traceback(km, opt, &tb, tl-1, ts, ql-1, qs, &r->n_cigar);
+		r->cigar = wf_traceback(km, opt, &tb, tl-1, ts, ql-1, qs, last_state, &r->n_cigar);
 		if (opt->flag&MWF_F_DEBUG) {
 			int32_t s, x, y;
 			s = mwf_cigar2score(opt, r->n_cigar, r->cigar, &x, &y);
