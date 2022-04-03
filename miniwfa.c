@@ -134,6 +134,57 @@ static inline wf_slice_t *wf_stripe_get(wf_stripe_t *wf, int32_t x)
 }
 
 /*
+ * Extend a diagonal along exact matches
+ */
+
+// pad strings with distinct characters
+static void wf_pad_str(void *km, int32_t tl, const char *ts, int32_t ql, const char *qs, char **pts, char **pqs)
+{
+	uint8_t t[256];
+	int32_t i, c1 = -1, c2 = -1;
+	char *s1, *s2;
+	*pts = *pqs = 0;
+	// collect all used characters
+	memset(t, 0, 256);
+	for (i = 0; i < tl; ++i)
+		if (t[(uint8_t)ts[i]] == 0)
+			t[(uint8_t)ts[i]] = 1;
+	for (i = 0; i < ql; ++i)
+		if (t[(uint8_t)qs[i]] == 0)
+			t[(uint8_t)qs[i]] = 1;
+	for (i = 0; i < 256; ++i)
+		if (t[i] == 0) {
+			if (c1 < 0) c1 = i;
+			else if (c2 < 0) c2 = i;
+		}
+	if (c1 < 0 || c2 < 0) return; // The two strings use >=255 characters. Unlikely for bio strings.
+	s1 = Kmalloc(km, char, tl + ql + 16); // the two strings are allocated together
+	s2 = s1 + tl + 8;
+	memcpy(s1, ts, tl);
+	for (i = tl; i < tl + 8; ++i) s1[i] = c1; // pad with c1
+	memcpy(s2, qs, ql);
+	for (i = ql; i < ql + 8; ++i) s2[i] = c2; // pad with c2
+	*pts = s1, *pqs = s2;
+}
+
+// Extend a diagonal along exact matches.
+static inline int32_t wf_extend1_padded(const char *ts, const char *qs, int32_t k, int32_t d)
+{
+	uint64_t cmp = 0;
+	const char *ts_ = ts + 1;
+	const char *qs_ = qs + d + 1;
+	while (1) {
+		uint64_t x = *(uint64_t*)(ts_ + k); // warning: unaligned memory access
+		uint64_t y = *(uint64_t*)(qs_ + k);
+		cmp = x ^ y;
+		if (cmp == 0) k += 8;
+		else break;
+	}
+	k += __builtin_ctzl(cmp) >> 3;
+	return k;
+}
+
+/*
  * Core algorithm
  */
 
@@ -145,29 +196,6 @@ static inline wf_slice_t *wf_stripe_get(wf_stripe_t *wf, int32_t x)
 #else
   #define PRAGMA_LOOP_VECTORIZE _Pragma("ivdep")
 #endif
-
-// Extend a diagonal along exact matches. This is a bottleneck and could be made faster with padding.
-static inline int32_t wf_extend1(int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t k, int32_t d)
-{
-	const char *ts_, *qs_;
-	uint64_t cmp = 0;
-	int32_t max_k = (ql - d < tl? ql - d : tl) - 1;
-	ts_ = ts + 1;
-	qs_ = qs + d + 1;
-	while (k + 7 < max_k) {
-		uint64_t x = *(uint64_t*)(ts_ + k); // warning: unaligned memory access
-		uint64_t y = *(uint64_t*)(qs_ + k);
-		cmp = x ^ y;
-		if (cmp == 0) k += 8;
-		else break;
-	}
-	if (cmp)
-		k += __builtin_ctzl(cmp) >> 3; // on x86, this is done via the BSR instruction: https://www.felixcloutier.com/x86/bsr
-	else if (k + 7 >= max_k)
-		while (k < max_k && *(ts_ + k) == *(qs_ + k)) // use this for generic CPUs. It is slightly faster than the unoptimized version
-			++k;
-	return k;
-}
 
 #define wf_max(a, b) ((a) >= (b)? (a) : (b))
 
@@ -283,6 +311,7 @@ void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, i
 	int32_t lo = 0, hi = 0, max_pen, is_tb = !!(opt->flag&MWF_F_CIGAR), last_state = 0;
 	wf_stripe_t *wf;
 	wf_tb_t tb = {0,0,0};
+	char *pts, *pqs;
 	void *km_tb;
 
 	memset(r, 0, sizeof(*r));
@@ -291,13 +320,15 @@ void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, i
 	max_pen = max_pen > opt->o1 + opt->e1? max_pen : opt->o1 + opt->e1;
 	max_pen = max_pen > opt->o2 + opt->e2? max_pen : opt->o2 + opt->e2;
 	wf = wf_stripe_init(km, max_pen);
+	wf_pad_str(km, tl, ts, ql, qs, &pts, &pqs);
+	assert(pts);
 
 	while (1) {
 		int32_t d, *H = wf->a[wf->top].H;
 		for (d = lo; d <= hi; ++d) {
 			int32_t k;
 			if (H[d] < -1 || d + H[d] < -1) continue;
-			k = wf_extend1(tl, ts, ql, qs, H[d], d);
+			k = wf_extend1_padded(pts, pqs, H[d], d);
 			if (k == tl - 1 && d + k == ql - 1) {
 				if (k == H[d] && is_tb)
 					last_state = tb.a[tb.n-1].x[d - tb.a[tb.n-1].lo] & 7;
@@ -316,6 +347,7 @@ void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, i
 		km_stat(km, &st);
 		fprintf(stderr, "tl=%d, ql=%d, cap=%ld, avail=%ld, n_blks=%ld\n", tl, ql, st.capacity, st.available, st.n_blocks);
 	}
+	kfree(km, pts);
 	if (is_tb) {
 		r->cigar = wf_traceback(km, opt, &tb, tl-1, ts, ql-1, qs, last_state, &r->n_cigar);
 		km_destroy(km_tb);
