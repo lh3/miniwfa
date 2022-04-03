@@ -93,6 +93,19 @@ static void wf_cigar_push1(void *km, wf_cigar_t *c, int32_t op, int32_t len)
 	}
 }
 
+int32_t mwf_cigar2score(const mwf_opt_t *opt, int32_t n_cigar, const uint32_t *cigar)
+{
+	int32_t k, s;
+	for (k = 0, s = 0; k < n_cigar; ++k) {
+		int32_t op = cigar[k]&0xf, len = cigar[k]>>4;
+		if (op == 1 || op == 2) {
+			int32_t s1 = opt->o1 + len * opt->e1, s2 = opt->o2 + len * opt->e2;
+			s += s1 < s2? s1 : s2;
+		} else if (op == 8) s += opt->x;
+	}
+	return s;
+}
+
 /*
  * Core algorithm
  */
@@ -300,13 +313,14 @@ void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, i
 		wf_next_basic(km, km_tb, opt, wf, is_tb? &tb : 0, lo, hi);
 	}
 	r->s = wf->s;
-	if (km && (opt->flag&BWF_F_KMDBG)) {
+	if (km && (opt->flag&BWF_F_DEBUG)) {
 		km_stat_t st;
 		km_stat(km, &st);
 		fprintf(stderr, "cap=%ld, avail=%ld, n_blks=%ld\n", st.capacity, st.available, st.n_blocks);
 	}
 	if (is_tb) {
 		r->cigar = wf_traceback(km, opt, &tb, tl-1, ts, ql-1, qs, &r->n_cigar);
+		if (opt->flag&BWF_F_DEBUG) fprintf(stderr, "s_ori=%d, s_recal=%d\n", r->s, mwf_cigar2score(opt, r->n_cigar, r->cigar));
 		km_destroy(km_tb);
 	}
 	wf_stripe_destroy(km, wf);
