@@ -264,8 +264,9 @@ static uint32_t *wf_traceback(void *km, const mwf_opt_t *opt, wf_tb_t *tb, int32
 		j = i - k - tb->a[s].lo;
 		assert(j <= tb->a[s].hi - tb->a[s].lo);
 		x = tb->a[s].x[j];
-		state = x & 0x7;
+		state = last == 0? x&7 : last;
 		ext = state > 0? x>>(state+2)&1 : 0; // whether an extension
+		//fprintf(stderr, "s=%d, %d->%d, ext=%d%d%d%d, i=%d, k=%d\n", s, last, state, x>>3&1, x>>4&1, x>>5&1, x>>6&1, i, k);
 		if (state == 0) {
 			wf_cigar_push1(km, &cigar, 8, 1);
 			--i, --k, s -= opt->x;
@@ -304,6 +305,7 @@ void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, i
 	wf_tb_t tb = {0,0,0};
 	void *km_tb;
 
+	memset(r, 0, sizeof(*r));
 	km_tb = is_tb? km_init2(km, 8000000) : 0; // this is slightly smaller than the kalloc block size
 	max_pen = max_pen > opt->o1 + opt->e1? max_pen : opt->o1 + opt->e1;
 	max_pen = max_pen > opt->o2 + opt->e2? max_pen : opt->o2 + opt->e2;

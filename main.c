@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
 			int32_t i;
 			putchar('\t');
 			for (i = 0; i < rst.n_cigar; ++i)
-				printf("%d%c", rst.cigar[i]>>4, "MIDNSHP=XB"[rst.cigar[i]&0xf]);
+				printf("%d%c", rst.cigar[i]>>4, "MIDNSHP=XBid"[rst.cigar[i]&0xf]);
 		}
 		putchar('\n');
 		kfree(km, rst.cigar);
