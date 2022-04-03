@@ -5,16 +5,6 @@
 #include "miniwfa.h"
 #include "kalloc.h"
 
-#if defined(__clang__)
-  #define PRAGMA_LOOP_VECTORIZE _Pragma("clang loop vectorize(enable)")
-#elif defined(__GNUC__)
-  #define PRAGMA_LOOP_VECTORIZE _Pragma("GCC ivdep")
-#else
-  #define PRAGMA_LOOP_VECTORIZE _Pragma("ivdep")
-#endif
-
-#define WF_NEG_INF (-0x40000000)
-
 /*
  * Default setting
  */
@@ -24,29 +14,6 @@ void mwf_opt_init(mwf_opt_t *opt)
 	opt->x  = 2;
 	opt->o1 = 4, opt->e1 = 2;
 	opt->o2 = 24, opt->e2 = 1;
-}
-
-// Extend a diagonal along exact matches. This is a bottleneck and could be made faster with padding.
-static inline int32_t wf_extend1(int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t k, int32_t d)
-{
-	const char *ts_, *qs_;
-	uint64_t cmp = 0;
-	int32_t max_k = (ql - d < tl? ql - d : tl) - 1;
-	ts_ = ts + 1;
-	qs_ = qs + d + 1;
-	while (k + 7 < max_k) {
-		uint64_t x = *(uint64_t*)(ts_ + k); // warning: unaligned memory access
-		uint64_t y = *(uint64_t*)(qs_ + k);
-		cmp = x ^ y;
-		if (cmp == 0) k += 8;
-		else break;
-	}
-	if (cmp)
-		k += __builtin_ctzl(cmp) >> 3; // on x86, this is done via the BSR instruction: https://www.felixcloutier.com/x86/bsr
-	else if (k + 7 >= max_k)
-		while (k < max_k && *(ts_ + k) == *(qs_ + k)) // use this for generic CPUs. It is slightly faster than the unoptimized version
-			++k;
-	return k;
 }
 
 /*
@@ -93,6 +60,7 @@ static void wf_cigar_push1(void *km, wf_cigar_t *c, int32_t op, int32_t len)
 	}
 }
 
+// recompute score from CIGAR
 int32_t mwf_cigar2score(const mwf_opt_t *opt, int32_t n_cigar, const uint32_t *cigar)
 {
 	int32_t k, s;
@@ -107,8 +75,10 @@ int32_t mwf_cigar2score(const mwf_opt_t *opt, int32_t n_cigar, const uint32_t *c
 }
 
 /*
- * Core algorithm
+ * The stripe data structure
  */
+#define WF_NEG_INF (-0x40000000)
+
 typedef struct {
 	int32_t lo, hi;
 	int32_t *mem, *H, *E1, *E2, *F1, *F2;
@@ -175,6 +145,42 @@ static inline wf_slice_t *wf_stripe_get(wf_stripe_t *wf, int32_t x)
 	int32_t y = wf->top - x;
 	if (y < 0) y += wf->n;
 	return &wf->a[y];
+}
+
+/*
+ * Core algorithm
+ */
+
+// Force loop vectorization. Learned from WFA.
+#if defined(__clang__)
+  #define PRAGMA_LOOP_VECTORIZE _Pragma("clang loop vectorize(enable)")
+#elif defined(__GNUC__)
+  #define PRAGMA_LOOP_VECTORIZE _Pragma("GCC ivdep")
+#else
+  #define PRAGMA_LOOP_VECTORIZE _Pragma("ivdep")
+#endif
+
+// Extend a diagonal along exact matches. This is a bottleneck and could be made faster with padding.
+static inline int32_t wf_extend1(int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t k, int32_t d)
+{
+	const char *ts_, *qs_;
+	uint64_t cmp = 0;
+	int32_t max_k = (ql - d < tl? ql - d : tl) - 1;
+	ts_ = ts + 1;
+	qs_ = qs + d + 1;
+	while (k + 7 < max_k) {
+		uint64_t x = *(uint64_t*)(ts_ + k); // warning: unaligned memory access
+		uint64_t y = *(uint64_t*)(qs_ + k);
+		cmp = x ^ y;
+		if (cmp == 0) k += 8;
+		else break;
+	}
+	if (cmp)
+		k += __builtin_ctzl(cmp) >> 3; // on x86, this is done via the BSR instruction: https://www.felixcloutier.com/x86/bsr
+	else if (k + 7 >= max_k)
+		while (k < max_k && *(ts_ + k) == *(qs_ + k)) // use this for generic CPUs. It is slightly faster than the unoptimized version
+			++k;
+	return k;
 }
 
 #define wf_max(a, b) ((a) >= (b)? (a) : (b))
