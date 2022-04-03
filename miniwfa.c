@@ -69,7 +69,7 @@ int32_t mwf_cigar2score(const mwf_opt_t *opt, int32_t n_cigar, const uint32_t *c
 		if (op == 1 || op == 2) {
 			int32_t s1 = opt->o1 + len * opt->e1, s2 = opt->o2 + len * opt->e2;
 			s += s1 < s2? s1 : s2;
-		} else if (op == 8) s += opt->x;
+		} else if (op == 8) s += len * opt->x;
 		if (op == 0 || op == 7 || op == 8) x += len, y += len;
 		else if (op == 1) y += len;
 		else if (op == 2) x += len;
@@ -284,7 +284,7 @@ static uint32_t *wf_traceback(void *km, const mwf_opt_t *opt, wf_tb_t *tb, int32
 		} else abort();
 		last = state > 0 && ext? state : 0;
 	}
-	if (opt->flag&MWF_F_DEBUG) fprintf(stderr, "s=%d, i=%d, k=%d\n", s, i, k);
+	if (opt->flag&MWF_F_DEBUG) fprintf(stderr, "s0=%d, s=%d, i=%d, k=%d\n", tb->n-1, s, i, k);
 	if (i >= 0) wf_cigar_push1(km, &cigar, 1, i + 1);
 	else if (k >= 0) wf_cigar_push1(km, &cigar, 2, k + 1);
 	for (i = 0; i < cigar.n>>1; ++i) { // reverse to the input order
