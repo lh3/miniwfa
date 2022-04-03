@@ -1,5 +1,6 @@
 #include <string.h>
 #include <assert.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include "miniwfa.h"
 #include "kalloc.h"
@@ -225,35 +226,40 @@ static void wf_next_basic(void *km, void *km_tb, const mwf_opt_t *opt, wf_stripe
 static uint32_t *wf_traceback(void *km, const mwf_opt_t *opt, wf_tb_t *tb, int32_t t_end, const char *ts, int32_t q_end, const char *qs, int32_t *n_cigar)
 {
 	wf_cigar_t cigar = {0,0,0};
-	int32_t i = q_end, k = t_end, s = tb->n - 1;
-	for (;;) {
-		int32_t k0 = k, j, pre, state;
-		while (i >= 0 && k >= 0 && qs[i] == ts[k])
-			--i, --k;
-		if (k0 - k > 0)
-			wf_cigar_push1(km, &cigar, 7, k0 - k);
-		if (i < 0 || k < 0) break;
+	int32_t i = q_end, k = t_end, s = tb->n - 1, last = 0;
+	while (i >= 0 && k >= 0) {
+		int32_t k0 = k, j, x, state;
+		if (last == 0) { // if the previous state is 0, check exact matches
+			while (i >= 0 && k >= 0 && qs[i] == ts[k])
+				--i, --k;
+			if (k0 - k > 0)
+				wf_cigar_push1(km, &cigar, 7, k0 - k);
+			if (i < 0 || k < 0) break;
+		}
 		assert(s >= 0);
 		j = i - k - tb->a[s].lo;
 		assert(j <= tb->a[s].hi - tb->a[s].lo);
-		pre = tb->a[s].x[j];
-		state = pre & 0x7;
+		x = tb->a[s].x[j];
+		state = x & 0x7;
 		if (state == 0) {
 			wf_cigar_push1(km, &cigar, 8, 1);
 			--i, --k, s -= opt->x;
 		} else if (state == 1) {
 			wf_cigar_push1(km, &cigar, 1, 1);
-			--i, s -= pre>>(state+2)&1? opt->e1 : opt->o1 + opt->e1;
+			--i, s -= x>>(state+2)&1? opt->e1 : opt->o1 + opt->e1;
 		} else if (state == 3) {
 			wf_cigar_push1(km, &cigar, 1, 1);
-			--i, s -= pre>>(state+2)&1? opt->e2 : opt->o2 + opt->e2;
+			--i, s -= x>>(state+2)&1? opt->e2 : opt->o2 + opt->e2;
 		} else if (state == 2) {
 			wf_cigar_push1(km, &cigar, 2, 1);
-			--k, s -= pre>>(state+2)&1? opt->e1 : opt->o1 + opt->e1;
+			--k, s -= x>>(state+2)&1? opt->e1 : opt->o1 + opt->e1;
 		} else if (state == 4) {
 			wf_cigar_push1(km, &cigar, 2, 1);
-			--k, s -= pre>>(state+2)&1? opt->e2 : opt->o2 + opt->e2;
-		}
+			--k, s -= x>>(state+2)&1? opt->e2 : opt->o2 + opt->e2;
+		} else abort();
+		last = state;
+		if (state != 0 && !(x >> (state+2) & 1))
+			last = 0;
 	}
 	if (i >= 0) wf_cigar_push1(km, &cigar, 1, i + 1);
 	else if (k >= 0) wf_cigar_push1(km, &cigar, 2, k + 1);
