@@ -43,6 +43,7 @@ int main(int argc, char *argv[])
 	while (kseq_read(ks1) >= 0 && kseq_read(ks2) >= 0) {
 		mwf_rst_t rst;
 		mwf_wfa_basic(km, &opt, ks1->seq.l, ks1->seq.s, ks2->seq.l, ks2->seq.s, &rst);
+		if (opt.flag & MWF_F_CIGAR) mwf_assert_cigar(&opt, rst.n_cigar, rst.cigar, ks1->seq.l, ks2->seq.l, rst.s);
 		printf("%s\t%ld\t0\t%ld\t+\t%s\t%ld\t0\t%ld\t%d", ks1->name.s, ks1->seq.l, ks1->seq.l, ks2->name.s, ks2->seq.l, ks2->seq.l, rst.s);
 		if (opt.flag & MWF_F_CIGAR) {
 			int32_t i;

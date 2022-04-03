@@ -4,7 +4,7 @@ CFLAGS=		-g -Wall -O2
 CXXFLAGS=	$(CFLAGS)
 CPPFLAGS=
 INCLUDES=
-OBJS=		kalloc.o miniwfa.o
+OBJS=		kalloc.o miniwfa.o mwf-dbg.o
 PROG=		mwf-test
 LIBS=		-lz -lpthread -lm
 LIBS_WFA2=
@@ -36,6 +36,7 @@ depend:
 
 # DO NOT DELETE
 
-miniwfa.o: miniwfa.h kalloc.h
 kalloc.o: kalloc.h
 main.o: ketopt.h kalloc.h miniwfa.h kseq.h
+miniwfa.o: miniwfa.h kalloc.h
+mwf-dbg.o: miniwfa.h
