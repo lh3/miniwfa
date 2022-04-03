@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "blockwfa.h"
+#include "miniwfa.h"
 #include "kalloc.h"
 
 #if defined(__clang__)

@@ -1,5 +1,5 @@
-#ifndef BLOCKWFA_H
-#define BLOCKWFA_H
+#ifndef MINIWFA_H
+#define MINIWFA_H
 
 #include <stdint.h>
 
