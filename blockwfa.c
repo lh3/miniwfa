@@ -101,7 +101,7 @@ void wf_stripe_add(void *km, bwf_stripe_t *wf, int32_t lo, int32_t hi)
 	f->F1 = f->E1 + n + m2;
 	f->E2 = f->F1 + n + m2;
 	f->F2 = f->E2 + n + m2;
-	for (i = -m1 + 1; i < 0; ++i)
+	for (i = -m1; i < 0; ++i)
 		f->H[i] = f->E1[i] = f->E2[i] = f->F1[i] = f->F2[i] = WF_NEG_INF;
 	for (i = n; i < n + m1; ++i)
 		f->H[i] = f->E1[i] = f->E2[i] = f->F1[i] = f->F2[i] = WF_NEG_INF;
@@ -144,7 +144,7 @@ static inline bwf_slice_t *wf_stripe_get(bwf_stripe_t *wf, int32_t x)
 
 #define wf_max(a, b) ((a) >= (b)? (a) : (b))
 
-static void wf_next_basic(void *km, const bwf_opt_t *opt, bwf_stripe_t *wf, bwf_tb_t *tb, int32_t lo, int32_t hi)
+static void wf_next_basic(void *km, void *km_tb, const bwf_opt_t *opt, bwf_stripe_t *wf, bwf_tb_t *tb, int32_t lo, int32_t hi)
 {
 	int32_t *H, *E1, *E2, *F1, *F2, d;
 	const int32_t *pHx, *pHo1, *pHo2, *pE1, *pE2, *pF1, *pF2;
@@ -175,7 +175,7 @@ static void wf_next_basic(void *km, const bwf_opt_t *opt, bwf_stripe_t *wf, bwf_
 		}
 	} else {
 		uint8_t *ax;
-		ax = bwf_tb_add(km, tb, lo, hi)->x - lo;
+		ax = bwf_tb_add(km_tb, tb, lo, hi)->x - lo;
 		PRAGMA_LOOP_VECTORIZE
 		for (d = lo; d <= hi; ++d) {
 			int32_t h, f, e;
@@ -203,11 +203,13 @@ static void wf_next_basic(void *km, const bwf_opt_t *opt, bwf_stripe_t *wf, bwf_
 
 int32_t bwf_wfa_score(void *km, const bwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs)
 {
-	int32_t s, j, lo = 0, hi = 0, is_tb = !!(opt->flag&BWF_F_CIGAR);
+	int32_t s, lo = 0, hi = 0, is_tb = !!(opt->flag&BWF_F_CIGAR);
 	int32_t max_pen = opt->x;
 	bwf_stripe_t *wf;
 	bwf_tb_t tb = {0,0,0};
+	void *km_tb = 0;
 
+	km_tb = km_init2(km, 8000000); // this is slightly smaller than the kalloc block size
 	max_pen = max_pen > opt->o1 + opt->e1? max_pen : opt->o1 + opt->e1;
 	max_pen = max_pen > opt->o2 + opt->e2? max_pen : opt->o2 + opt->e2;
 	wf = wf_stripe_init(km, max_pen);
@@ -216,7 +218,7 @@ int32_t bwf_wfa_score(void *km, const bwf_opt_t *opt, int32_t tl, const char *ts
 		int32_t d, *H = wf->a[wf->top].H;
 		for (d = lo; d <= hi; ++d) {
 			int32_t k;
-			if (H[d] < -1) continue;
+			if (H[d] < -1 || d + H[d] < -1) continue;
 			k = wf_extend1(tl, ts, ql, qs, H[d], d);
 			if (k == tl - 1 && d + k == ql - 1)
 				break;
@@ -225,11 +227,15 @@ int32_t bwf_wfa_score(void *km, const bwf_opt_t *opt, int32_t tl, const char *ts
 		if (d <= hi) break;
 		if (lo > -tl) --lo;
 		if (hi < ql)  ++hi;
-		wf_next_basic(km, opt, wf, is_tb? &tb : 0, lo, hi);
+		wf_next_basic(km, km_tb, opt, wf, is_tb? &tb : 0, lo, hi);
 	}
 	s = wf->s;
-	for (j = 0; j < tb.n; ++j) kfree(km, tb.a[j].x);
-	kfree(km, tb.a);
+	if (km && (opt->flag&BWF_F_KMDBG)) {
+		km_stat_t st;
+		km_stat(km, &st);
+		fprintf(stderr, "cap=%ld, avail=%ld, n_blks=%ld\n", st.capacity, st.available, st.n_blocks);
+	}
+	km_destroy(km_tb);
 	wf_stripe_destroy(km, wf);
 	return s;
 }
