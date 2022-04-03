@@ -5,7 +5,7 @@ CXXFLAGS=	$(CFLAGS)
 CPPFLAGS=
 INCLUDES=
 OBJS=		kalloc.o miniwfa.o
-PROG=		wfa-test
+PROG=		mwf-test
 LIBS=		-lz -lpthread -lm
 LIBS_WFA2=
 

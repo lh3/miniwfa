@@ -1,4 +1,5 @@
 #include <string.h>
+#include <assert.h>
 #include <stdio.h>
 #include "miniwfa.h"
 #include "kalloc.h"
@@ -200,17 +201,17 @@ static void wf_next_basic(void *km, void *km_tb, const mwf_opt_t *opt, wf_stripe
 		for (d = lo; d <= hi; ++d) {
 			int32_t h, f, e;
 			uint8_t x = 0, ze, zf, z;
-			x |= pHo1[d-1] >= pF1[d-1]? 0 : 0x10;
+			x |= pHo1[d-1] >= pF1[d-1]? 0 : 0x08;
 			F1[d] = wf_max(pHo1[d-1], pF1[d-1]);
 			x |= pHo2[d-1] >= pF2[d-1]? 0 : 0x20;
 			F2[d] = wf_max(pHo2[d-1], pF2[d-1]);
-			zf = F1[d] >= F2[d]? 1 : 2;
+			zf = F1[d] >= F2[d]? 1 : 3;
 			f = wf_max(F1[d], F2[d]);
-			x |= pHo1[d+1] >= pE1[d+1]? 0 : 0x40;
+			x |= pHo1[d+1] >= pE1[d+1]? 0 : 0x10;
 			E1[d] = wf_max(pHo1[d+1], pE1[d+1]) + 1;
-			x |= pHo2[d+1] >= pE2[d+1]? 0 : 0x80;
+			x |= pHo2[d+1] >= pE2[d+1]? 0 : 0x40;
 			E2[d] = wf_max(pHo2[d+1], pE2[d+1]) + 1;
-			ze = E1[d] >= E2[d]? 3 : 4;
+			ze = E1[d] >= E2[d]? 2 : 4;
 			e = wf_max(E1[d], E2[d]);
 			z = e >= f? ze : zf;
 			h = wf_max(e, f);
@@ -221,19 +222,59 @@ static void wf_next_basic(void *km, void *km_tb, const mwf_opt_t *opt, wf_stripe
 	}
 }
 
-static void wf_traceback(void *km, wf_tb_t *tb, int32_t t_end, const char *ts, int32_t q_end, const char *qs, int32_t *n_cigar)
+static uint32_t *wf_traceback(void *km, const mwf_opt_t *opt, wf_tb_t *tb, int32_t t_end, const char *ts, int32_t q_end, const char *qs, int32_t *n_cigar)
 {
+	wf_cigar_t cigar = {0,0,0};
+	int32_t i = q_end, k = t_end, s = tb->n - 1;
+	for (;;) {
+		int32_t k0 = k, j, pre, state;
+		while (i >= 0 && k >= 0 && qs[i] == ts[k])
+			--i, --k;
+		if (k0 - k > 0)
+			wf_cigar_push1(km, &cigar, 7, k0 - k);
+		if (i < 0 || k < 0) break;
+		assert(s >= 0);
+		j = i - k - tb->a[s].lo;
+		assert(j <= tb->a[s].hi - tb->a[s].lo);
+		pre = tb->a[s].x[j];
+		state = pre & 0x7;
+		if (state == 0) {
+			wf_cigar_push1(km, &cigar, 8, 1);
+			--i, --k, s -= opt->x;
+		} else if (state == 1) {
+			wf_cigar_push1(km, &cigar, 1, 1);
+			--i, s -= pre>>(state+2)&1? opt->e1 : opt->o1 + opt->e1;
+		} else if (state == 3) {
+			wf_cigar_push1(km, &cigar, 1, 1);
+			--i, s -= pre>>(state+2)&1? opt->e2 : opt->o2 + opt->e2;
+		} else if (state == 2) {
+			wf_cigar_push1(km, &cigar, 2, 1);
+			--k, s -= pre>>(state+2)&1? opt->e1 : opt->o1 + opt->e1;
+		} else if (state == 4) {
+			wf_cigar_push1(km, &cigar, 2, 1);
+			--k, s -= pre>>(state+2)&1? opt->e2 : opt->o2 + opt->e2;
+		}
+	}
+	if (i >= 0) wf_cigar_push1(km, &cigar, 1, i + 1);
+	else if (k >= 0) wf_cigar_push1(km, &cigar, 2, k + 1);
+	for (i = 0; i < cigar.n>>1; ++i) {
+		uint32_t t = cigar.cigar[i];
+		cigar.cigar[i] = cigar.cigar[cigar.n - i - 1];
+		cigar.cigar[cigar.n - i - 1] = t;
+	}
+	*n_cigar = cigar.n;
+	return cigar.cigar;
 }
 
-int32_t mwf_wfa_score(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs)
+void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
 {
-	int32_t s, lo = 0, hi = 0, is_tb = !!(opt->flag&BWF_F_CIGAR);
+	int32_t lo = 0, hi = 0, is_tb = !!(opt->flag&BWF_F_CIGAR);
 	int32_t max_pen = opt->x;
 	wf_stripe_t *wf;
 	wf_tb_t tb = {0,0,0};
-	void *km_tb = 0;
+	void *km_tb;
 
-	km_tb = km_init2(km, 8000000); // this is slightly smaller than the kalloc block size
+	km_tb = is_tb? km_init2(km, 8000000) : 0; // this is slightly smaller than the kalloc block size
 	max_pen = max_pen > opt->o1 + opt->e1? max_pen : opt->o1 + opt->e1;
 	max_pen = max_pen > opt->o2 + opt->e2? max_pen : opt->o2 + opt->e2;
 	wf = wf_stripe_init(km, max_pen);
@@ -253,13 +294,15 @@ int32_t mwf_wfa_score(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts
 		if (hi < ql)  ++hi;
 		wf_next_basic(km, km_tb, opt, wf, is_tb? &tb : 0, lo, hi);
 	}
-	s = wf->s;
+	r->s = wf->s;
 	if (km && (opt->flag&BWF_F_KMDBG)) {
 		km_stat_t st;
 		km_stat(km, &st);
 		fprintf(stderr, "cap=%ld, avail=%ld, n_blks=%ld\n", st.capacity, st.available, st.n_blocks);
 	}
-	km_destroy(km_tb);
+	if (is_tb) {
+		r->cigar = wf_traceback(km, opt, &tb, tl-1, ts, ql-1, qs, &r->n_cigar);
+		km_destroy(km_tb);
+	}
 	wf_stripe_destroy(km, wf);
-	return s;
 }

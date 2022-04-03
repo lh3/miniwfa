@@ -11,7 +11,20 @@ typedef struct {
 	int32_t flag;
 } mwf_opt_t;
 
+typedef struct {
+	int32_t s, n_cigar;
+	uint32_t *cigar;
+} mwf_rst_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void mwf_opt_init(mwf_opt_t *opt);
-int32_t mwf_wfa_score(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs);
+void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -40,10 +40,17 @@ int main(int argc, char *argv[])
 
 	km = use_kalloc? km_init() : 0;
 	while (kseq_read(ks1) >= 0 && kseq_read(ks2) >= 0) {
-		int32_t s;
-		s = mwf_wfa_score(km, &opt, ks1->seq.l, ks1->seq.s, ks2->seq.l, ks2->seq.s);
-		printf("%s\t%ld\t0\t%ld\t+\t%s\t%ld\t0\t%ld\t%d", ks1->name.s, ks1->seq.l, ks1->seq.l, ks2->name.s, ks2->seq.l, ks2->seq.l, s);
+		mwf_rst_t rst;
+		mwf_wfa_basic(km, &opt, ks1->seq.l, ks1->seq.s, ks2->seq.l, ks2->seq.s, &rst);
+		printf("%s\t%ld\t0\t%ld\t+\t%s\t%ld\t0\t%ld\t%d", ks1->name.s, ks1->seq.l, ks1->seq.l, ks2->name.s, ks2->seq.l, ks2->seq.l, rst.s);
+		if (opt.flag & BWF_F_CIGAR) {
+			int32_t i;
+			putchar('\t');
+			for (i = 0; i < rst.n_cigar; ++i)
+				printf("%d%c", rst.cigar[i]>>4, "MIDNSHP=XB"[rst.cigar[i]&0xf]);
+		}
 		putchar('\n');
+		kfree(km, rst.cigar);
 	}
 	if (use_kalloc) km_destroy(km);
 
