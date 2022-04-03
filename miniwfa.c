@@ -48,29 +48,47 @@ static inline int32_t wf_extend1(int32_t tl, const char *ts, int32_t ql, const c
 }
 
 /*
- * Traceback array
+ * Structs and simple functions for traceback
  */
 typedef struct {
 	int32_t lo, hi;
 	uint8_t *x;
-} mwf_tb1_t;
+} wf_tb1_t;
 
 typedef struct {
 	int32_t m, n;
-	mwf_tb1_t *a;
-} mwf_tb_t;
+	wf_tb1_t *a;
+} wf_tb_t;
 
-static mwf_tb1_t *mwf_tb_add(void *km, mwf_tb_t *tb, int32_t lo, int32_t hi)
+static wf_tb1_t *wf_tb_add(void *km, wf_tb_t *tb, int32_t lo, int32_t hi)
 {
-	mwf_tb1_t *p;
+	wf_tb1_t *p;
 	if (tb->n == tb->m) {
 		tb->m += (tb->m>>1) + 4;
-		tb->a = Krealloc(km, mwf_tb1_t, tb->a, tb->m);
+		tb->a = Krealloc(km, wf_tb1_t, tb->a, tb->m);
 	}
 	p = &tb->a[tb->n++];
 	p->lo = lo, p->hi = hi;
 	p->x = Kcalloc(km, uint8_t, hi - lo + 1);
 	return p;
+}
+
+typedef struct {
+	int32_t m, n;
+	uint32_t *cigar;
+} wf_cigar_t;
+
+static void wf_cigar_push1(void *km, wf_cigar_t *c, int32_t op, int32_t len)
+{
+	if (c->n && op == (c->cigar[c->n-1]&0xf)) {
+		c->cigar[c->n-1] += len<<4;
+	} else {
+		if (c->n == c->m) {
+			c->m = c->m + (c->m>>1) + 4;
+			c->cigar = Krealloc(km, uint32_t, c->cigar, c->m);
+		}
+		c->cigar[c->n++] = len<<4 | op;
+	}
 }
 
 /*
@@ -79,17 +97,17 @@ static mwf_tb1_t *mwf_tb_add(void *km, mwf_tb_t *tb, int32_t lo, int32_t hi)
 typedef struct {
 	int32_t lo, hi;
 	int32_t *mem, *H, *E1, *E2, *F1, *F2;
-} mwf_slice_t;
+} wf_slice_t;
 
 typedef struct {
 	int32_t s, top, n, max_pen;
-	mwf_slice_t *a;
-} mwf_stripe_t;
+	wf_slice_t *a;
+} wf_stripe_t;
 
-void wf_stripe_add(void *km, mwf_stripe_t *wf, int32_t lo, int32_t hi)
+void wf_stripe_add(void *km, wf_stripe_t *wf, int32_t lo, int32_t hi)
 {
 	int32_t i, n, m1 = wf->max_pen + 1, m2 = m1 * 2;
-	mwf_slice_t *f;
+	wf_slice_t *f;
 	++wf->s;
 	++wf->top;
 	if (wf->top == wf->n) wf->top = 0;
@@ -110,16 +128,16 @@ void wf_stripe_add(void *km, mwf_stripe_t *wf, int32_t lo, int32_t hi)
 	f->H -= lo, f->E1 -= lo, f->E2 -= lo, f->F1 -= lo, f->F2 -= lo; // such that f->H[lo] points to 0
 }
 
-static mwf_stripe_t *wf_stripe_init(void *km, int32_t max_pen)
+static wf_stripe_t *wf_stripe_init(void *km, int32_t max_pen)
 {
 	int32_t i;
-	mwf_stripe_t *wf;
-	wf = Kcalloc(km, mwf_stripe_t, 1);
+	wf_stripe_t *wf;
+	wf = Kcalloc(km, wf_stripe_t, 1);
 	wf->max_pen = max_pen;
 	wf->n = max_pen + 1;
-	wf->a = Kcalloc(km, mwf_slice_t, wf->n);
+	wf->a = Kcalloc(km, wf_slice_t, wf->n);
 	for (i = 0; i < wf->n; ++i) {
-		mwf_slice_t *f;
+		wf_slice_t *f;
 		wf_stripe_add(km, wf, 0, 0);
 		f = &wf->a[wf->top];
 		f->H[0] = f->E1[0] = f->E2[0] = f->F1[0] = f->F2[0] = WF_NEG_INF;
@@ -129,7 +147,7 @@ static mwf_stripe_t *wf_stripe_init(void *km, int32_t max_pen)
 	return wf;
 }
 
-static void wf_stripe_destroy(void *km, mwf_stripe_t *wf)
+static void wf_stripe_destroy(void *km, wf_stripe_t *wf)
 {
 	int32_t i;
 	for (i = 0; i < wf->n; ++i)
@@ -137,7 +155,7 @@ static void wf_stripe_destroy(void *km, mwf_stripe_t *wf)
 	kfree(km, wf);
 }
 
-static inline mwf_slice_t *wf_stripe_get(mwf_stripe_t *wf, int32_t x)
+static inline wf_slice_t *wf_stripe_get(wf_stripe_t *wf, int32_t x)
 {
 	int32_t y = wf->top - x;
 	if (y < 0) y += wf->n;
@@ -146,12 +164,12 @@ static inline mwf_slice_t *wf_stripe_get(mwf_stripe_t *wf, int32_t x)
 
 #define wf_max(a, b) ((a) >= (b)? (a) : (b))
 
-static void wf_next_basic(void *km, void *km_tb, const mwf_opt_t *opt, mwf_stripe_t *wf, mwf_tb_t *tb, int32_t lo, int32_t hi)
+static void wf_next_basic(void *km, void *km_tb, const mwf_opt_t *opt, wf_stripe_t *wf, wf_tb_t *tb, int32_t lo, int32_t hi)
 {
 	int32_t *H, *E1, *E2, *F1, *F2, d;
 	const int32_t *pHx, *pHo1, *pHo2, *pE1, *pE2, *pF1, *pF2;
-	const mwf_slice_t *fx, *fo1, *fo2, *fe1, *fe2;
-	mwf_slice_t *ft;
+	const wf_slice_t *fx, *fo1, *fo2, *fe1, *fe2;
+	wf_slice_t *ft;
 	wf_stripe_add(km, wf, lo, hi);
 	ft  = &wf->a[wf->top];
 	fx  = wf_stripe_get(wf, opt->x);
@@ -177,7 +195,7 @@ static void wf_next_basic(void *km, void *km_tb, const mwf_opt_t *opt, mwf_strip
 		}
 	} else {
 		uint8_t *ax;
-		ax = mwf_tb_add(km_tb, tb, lo, hi)->x - lo;
+		ax = wf_tb_add(km_tb, tb, lo, hi)->x - lo;
 		PRAGMA_LOOP_VECTORIZE
 		for (d = lo; d <= hi; ++d) {
 			int32_t h, f, e;
@@ -203,12 +221,16 @@ static void wf_next_basic(void *km, void *km_tb, const mwf_opt_t *opt, mwf_strip
 	}
 }
 
+static void wf_traceback(void *km, wf_tb_t *tb, int32_t t_end, const char *ts, int32_t q_end, const char *qs, int32_t *n_cigar)
+{
+}
+
 int32_t mwf_wfa_score(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs)
 {
 	int32_t s, lo = 0, hi = 0, is_tb = !!(opt->flag&BWF_F_CIGAR);
 	int32_t max_pen = opt->x;
-	mwf_stripe_t *wf;
-	mwf_tb_t tb = {0,0,0};
+	wf_stripe_t *wf;
+	wf_tb_t tb = {0,0,0};
 	void *km_tb = 0;
 
 	km_tb = km_init2(km, 8000000); // this is slightly smaller than the kalloc block size
