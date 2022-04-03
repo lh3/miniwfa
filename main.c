@@ -20,8 +20,8 @@ int main(int argc, char *argv[])
 	mwf_opt_init(&opt);
 	while ((c = ketopt(&o, argc, argv, 1, "cKd", 0)) >= 0) {
 		if (o.opt == 'K') use_kalloc = !use_kalloc;
-		else if (o.opt == 'c') opt.flag |= BWF_F_CIGAR;
-		else if (o.opt == 'd') opt.flag |= BWF_F_DEBUG;
+		else if (o.opt == 'c') opt.flag |= MWF_F_CIGAR;
+		else if (o.opt == 'd') opt.flag |= MWF_F_DEBUG;
 		else if (1) {
 			fprintf(stderr, "ERROR: unknown option\n");
 			return 1;
@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
 		mwf_rst_t rst;
 		mwf_wfa_basic(km, &opt, ks1->seq.l, ks1->seq.s, ks2->seq.l, ks2->seq.s, &rst);
 		printf("%s\t%ld\t0\t%ld\t+\t%s\t%ld\t0\t%ld\t%d", ks1->name.s, ks1->seq.l, ks1->seq.l, ks2->name.s, ks2->seq.l, ks2->seq.l, rst.s);
-		if (opt.flag & BWF_F_CIGAR) {
+		if (opt.flag & MWF_F_CIGAR) {
 			int32_t i;
 			putchar('\t');
 			for (i = 0; i < rst.n_cigar; ++i)

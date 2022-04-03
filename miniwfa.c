@@ -284,6 +284,7 @@ static uint32_t *wf_traceback(void *km, const mwf_opt_t *opt, wf_tb_t *tb, int32
 		} else abort();
 		last = state > 0 && ext? state : 0;
 	}
+	if (opt->flag&MWF_F_DEBUG) fprintf(stderr, "s=%d, i=%d, k=%d\n", s, i, k);
 	if (i >= 0) wf_cigar_push1(km, &cigar, 1, i + 1);
 	else if (k >= 0) wf_cigar_push1(km, &cigar, 2, k + 1);
 	for (i = 0; i < cigar.n>>1; ++i) { // reverse to the input order
@@ -297,7 +298,7 @@ static uint32_t *wf_traceback(void *km, const mwf_opt_t *opt, wf_tb_t *tb, int32
 
 void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
 {
-	int32_t lo = 0, hi = 0, is_tb = !!(opt->flag&BWF_F_CIGAR);
+	int32_t lo = 0, hi = 0, is_tb = !!(opt->flag&MWF_F_CIGAR);
 	int32_t max_pen = opt->x;
 	wf_stripe_t *wf;
 	wf_tb_t tb = {0,0,0};
@@ -324,14 +325,14 @@ void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, i
 		wf_next_basic(km, km_tb, opt, wf, is_tb? &tb : 0, lo, hi);
 	}
 	r->s = wf->s;
-	if (km && (opt->flag&BWF_F_DEBUG)) {
+	if (km && (opt->flag&MWF_F_DEBUG)) {
 		km_stat_t st;
 		km_stat(km, &st);
 		fprintf(stderr, "cap=%ld, avail=%ld, n_blks=%ld\n", st.capacity, st.available, st.n_blocks);
 	}
 	if (is_tb) {
 		r->cigar = wf_traceback(km, opt, &tb, tl-1, ts, ql-1, qs, &r->n_cigar);
-		if (opt->flag&BWF_F_DEBUG) {
+		if (opt->flag&MWF_F_DEBUG) {
 			int32_t s, x, y;
 			s = mwf_cigar2score(opt, r->n_cigar, r->cigar, &x, &y);
 			assert(tl == x && ql == y);
