@@ -203,10 +203,11 @@ static inline int32_t wf_extend1_padded(const char *ts, const char *qs, int32_t 
 
 #define wf_max(a, b) ((a) >= (b)? (a) : (b))
 
-static void wf_next_basic(void *km, void *km_tb, const mwf_opt_t *opt, wf_stripe_t *wf, wf_tb_t *tb, int32_t lo, int32_t hi)
+static void wf_next_prep(void *km, const mwf_opt_t *opt, wf_stripe_t *wf, int32_t lo, int32_t hi,
+						 int32_t **H, int32_t **E1, int32_t **F1, int32_t **E2, int32_t **F2,
+						 const int32_t **pHx, const int32_t **pHo1, const int32_t **pHo2,
+						 const int32_t **pE1, const int32_t **pF1, const int32_t **pE2, const int32_t **pF2)
 {
-	int32_t *H, *E1, *E2, *F1, *F2, d;
-	const int32_t *pHx, *pHo1, *pHo2, *pE1, *pE2, *pF1, *pF2;
 	const wf_slice_t *fx, *fo1, *fo2, *fe1, *fe2;
 	wf_slice_t *ft;
 	wf_stripe_add(km, wf, lo, hi);
@@ -216,8 +217,15 @@ static void wf_next_basic(void *km, void *km_tb, const mwf_opt_t *opt, wf_stripe
 	fo2 = wf_stripe_get(wf, opt->o2 + opt->e2);
 	fe1 = wf_stripe_get(wf, opt->e1);
 	fe2 = wf_stripe_get(wf, opt->e2);
-	pHx = fx->H, pHo1 = fo1->H, pHo2 = fo2->H, pE1 = fe1->E1, pE2 = fe2->E2, pF1 = fe1->F1, pF2 = fe2->F2;
-	H = ft->H, E1 = ft->E1, E2 = ft->E2, F1 = ft->F1, F2 = ft->F2;
+	*pHx = fx->H, *pHo1 = fo1->H, *pHo2 = fo2->H, *pE1 = fe1->E1, *pE2 = fe2->E2, *pF1 = fe1->F1, *pF2 = fe2->F2;
+	*H = ft->H, *E1 = ft->E1, *E2 = ft->E2, *F1 = ft->F1, *F2 = ft->F2;
+}
+
+static void wf_next_basic(void *km, void *km_tb, const mwf_opt_t *opt, wf_stripe_t *wf, wf_tb_t *tb, int32_t lo, int32_t hi)
+{
+	int32_t *H, *E1, *E2, *F1, *F2, d;
+	const int32_t *pHx, *pHo1, *pHo2, *pE1, *pE2, *pF1, *pF2;
+	wf_next_prep(km, opt, wf, lo, hi, &H, &E1, &F1, &E2, &F2, &pHx, &pHo1, &pHo2, &pE1, &pF1, &pE2, &pF2);
 	if (!tb) {
 		PRAGMA_LOOP_VECTORIZE
 		for (d = lo; d <= hi; ++d) {
@@ -413,24 +421,23 @@ static void wf_snapshot(void *km, wf_sss_t *sss, wf_stripe_t *sf)
 	wf_snapshot1(km, sf, &sss->a[sss->n++]);
 }
 
+static void wf_snapshot_free(void *km, wf_sss_t *sss)
+{
+	int32_t j;
+	for (j = 0; j < sss->n; ++j) {
+		kfree(km, sss->a[j].x);
+		kfree(km, sss->a[j].intv);
+	}
+	kfree(km, sss->a);
+}
+
 static void wf_next_seg(void *km, const mwf_opt_t *opt, uint8_t *xbuf, wf_stripe_t *wf, wf_stripe_t *sf, int32_t lo, int32_t hi)
 {
 	int32_t d, *H, *E1, *E2, *F1, *F2;
 	const int32_t *pHx, *pHo1, *pHo2, *pE1, *pE2, *pF1, *pF2;
-	const wf_slice_t *fx, *fo1, *fo2, *fe1, *fe2;
 	uint8_t *ax = xbuf - lo;
-	wf_slice_t *ft;
 
-	wf_stripe_add(km, wf, lo, hi);
-	ft  = &wf->a[wf->top];
-	fx  = wf_stripe_get(wf, opt->x);
-	fo1 = wf_stripe_get(wf, opt->o1 + opt->e1);
-	fo2 = wf_stripe_get(wf, opt->o2 + opt->e2);
-	fe1 = wf_stripe_get(wf, opt->e1);
-	fe2 = wf_stripe_get(wf, opt->e2);
-	pHx = fx->H, pHo1 = fo1->H, pHo2 = fo2->H, pE1 = fe1->E1, pE2 = fe2->E2, pF1 = fe1->F1, pF2 = fe2->F2;
-	H = ft->H, E1 = ft->E1, E2 = ft->E2, F1 = ft->F1, F2 = ft->F2;
-
+	wf_next_prep(km, opt, wf, lo, hi, &H, &E1, &F1, &E2, &F2, &pHx, &pHo1, &pHo2, &pE1, &pF1, &pE2, &pF2);
 	PRAGMA_LOOP_VECTORIZE
 	for (d = lo; d <= hi; ++d) { // same as the loop in wf_next_basic()
 		int32_t h, f, e;
@@ -454,16 +461,7 @@ static void wf_next_seg(void *km, const mwf_opt_t *opt, uint8_t *xbuf, wf_stripe
 		ax[d] = x | z;
 	}
 
-	wf_stripe_add(km, sf, lo, hi);
-	ft  = &sf->a[sf->top];
-	fx  = wf_stripe_get(sf, opt->x);
-	fo1 = wf_stripe_get(sf, opt->o1 + opt->e1);
-	fo2 = wf_stripe_get(sf, opt->o2 + opt->e2);
-	fe1 = wf_stripe_get(sf, opt->e1);
-	fe2 = wf_stripe_get(sf, opt->e2);
-	pHx = fx->H, pHo1 = fo1->H, pHo2 = fo2->H, pE1 = fe1->E1, pE2 = fe2->E2, pF1 = fe1->F1, pF2 = fe2->F2;
-	H = ft->H, E1 = ft->E1, E2 = ft->E2, F1 = ft->F1, F2 = ft->F2;
-
+	wf_next_prep(km, opt, sf, lo, hi, &H, &E1, &F1, &E2, &F2, &pHx, &pHo1, &pHo2, &pE1, &pF1, &pE2, &pF2);
 	//PRAGMA_LOOP_VECTORIZE
 	for (d = lo; d <= hi; ++d) { // this loop can't be vectorized
 		uint8_t x = ax[lo];
@@ -533,6 +531,7 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 			wf_snapshot(km, &sss, sf);
 	}
 	seg = wf_traceback_seg(km, &sss, last, &n_seg);
+	wf_snapshot_free(km, &sss);
 	wf_stripe_destroy(km, wf);
 	wf_stripe_destroy(km, sf);
 	kfree(km, xbuf);
