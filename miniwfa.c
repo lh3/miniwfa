@@ -406,7 +406,7 @@ static void wf_snapshot1(void *km, wf_stripe_t *sf, wf_ss_t *ss)
 	ss->n = 0, ss->max_s = sf->s;
 	for (j = 0; j < sf->n; ++j) {
 		k = (sf->top + 1 + j) % sf->n;
-		ss->n += sf->a[k].hi - sf->a[k].lo + 1;
+		ss->n += 5 * (sf->a[k].hi - sf->a[k].lo + 1);
 	}
 	ss->x = Kmalloc(km, int32_t, ss->n * 5);
 	ss->n_intv = sf->n;
@@ -415,7 +415,7 @@ static void wf_snapshot1(void *km, wf_stripe_t *sf, wf_ss_t *ss)
 		wf_slice_t *p;
 		k = (sf->top + 1 + j) % sf->n;
 		p = &sf->a[k];
-		ss->intv[k] = (uint64_t)p->lo << 32 | (p->hi - p->lo + 1);
+		ss->intv[k] = (uint64_t)p->lo << 32 | (p->hi - p->lo + 1) * 5;
 		for (k = p->lo; k <= p->hi; ++k) {
 			ss->x[t] = p->H[k],  p->H[k]  = t++;
 			ss->x[t] = p->E1[k], p->E1[k] = t++;
@@ -456,7 +456,7 @@ static void wf_next_seg(void *km, const mwf_opt_t *opt, uint8_t *xbuf, wf_stripe
 	wf_next_prep(km, opt, sf, lo, hi, &H, &E1, &F1, &E2, &F2, &pHx, &pHo1, &pHo2, &pE1, &pF1, &pE2, &pF2);
 	//PRAGMA_LOOP_VECTORIZE
 	for (d = lo; d <= hi; ++d) { // this loop can't be vectorized
-		uint8_t x = ax[lo];
+		uint8_t x = ax[d];
 		E1[d] = (x&0x08) == 0? pHo1[d-1] : pE1[d-1];
 		E2[d] = (x&0x20) == 0? pHo2[d-1] : pE2[d-1];
 		F1[d] = (x&0x10) == 0? pHo1[d+1] : pF1[d+1];
@@ -510,7 +510,7 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 			if (H[d] < -1 || d + H[d] < -1) continue;
 			k = wf_extend1_padded(pts, pqs, H[d], d);
 			if (k == tl - 1 && d + k == ql - 1) {
-				last = sf->a[wf->top].H[d];
+				last = sf->a[sf->top].H[d];
 				break;
 			}
 			H[d] = k;
@@ -523,6 +523,11 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 			wf_snapshot(km, &sss, sf);
 	}
 	seg = wf_traceback_seg(km, &sss, last, &n_seg);
+	if (km && (opt->flag&MWF_F_DEBUG)) {
+		km_stat_t st;
+		km_stat(km, &st);
+		fprintf(stderr, "tl=%d, ql=%d, cap=%ld, avail=%ld, n_blks=%ld\n", tl, ql, st.capacity, st.available, st.n_blocks);
+	}
 	wf_snapshot_free(km, &sss);
 	wf_stripe_destroy(km, wf);
 	wf_stripe_destroy(km, sf);

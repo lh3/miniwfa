@@ -18,18 +18,22 @@ int main(int argc, char *argv[])
 	void *km = 0;
 
 	mwf_opt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "cKd", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "cKdp:", 0)) >= 0) {
 		if (o.opt == 'K') use_kalloc = !use_kalloc;
 		else if (o.opt == 'c') opt.flag |= MWF_F_CIGAR;
 		else if (o.opt == 'd') opt.flag |= MWF_F_DEBUG;
+		else if (o.opt == 'p') opt.flag |= MWF_F_CIGAR, opt.step = atoi(o.arg);
 		else if (1) {
 			fprintf(stderr, "ERROR: unknown option\n");
 			return 1;
 		}
 	}
 	if (argc - o.ind < 2) {
-		fprintf(stderr, "Usage: wfa-test [options] <in1.fa> <in2.fa>\n");
+		fprintf(stderr, "Usage: mwf-test [options] <in1.fa> <in2.fa>\n");
 		fprintf(stderr, "Options:\n");
+		fprintf(stderr, "  -c       generate CIGAR\n");
+		fprintf(stderr, "  -K       disable the kalloc allocator\n");
+		fprintf(stderr, "  -p INT   step size (force -c; 0 to disable) [%d]\n", opt.step);
 		return 1;
 	}
 
