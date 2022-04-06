@@ -7,8 +7,9 @@
 #define MWF_F_DEBUG    0x100
 
 typedef struct {
-	int32_t x, o1, e1, o2, e2;
 	int32_t flag;
+	int32_t x, o1, e1, o2, e2;
+	int32_t step;
 } mwf_opt_t;
 
 typedef struct {
@@ -21,7 +22,7 @@ extern "C" {
 #endif
 
 void mwf_opt_init(mwf_opt_t *opt);
-void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r);
+void mwf_wfa(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r);
 
 // These functions are in "mwf-dbg.c". For debugging only.
 int32_t mwf_cigar2score(const mwf_opt_t *opt, int32_t n_cigar, const uint32_t *cigar, int32_t *tl, int32_t *ql);

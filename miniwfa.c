@@ -133,6 +133,10 @@ static inline wf_slice_t *wf_stripe_get(wf_stripe_t *wf, int32_t x)
 	return &wf->a[y];
 }
 
+typedef struct {
+	int32_t max_s, d;
+} wf_chkpt_t;
+
 /*
  * Extend a diagonal along exact matches
  */
@@ -257,7 +261,7 @@ static void wf_next_basic(void *km, void *km_tb, const mwf_opt_t *opt, wf_stripe
 }
 
 static uint32_t *wf_traceback(void *km, const mwf_opt_t *opt, wf_tb_t *tb, int32_t t_end, const char *ts, int32_t q_end, const char *qs, int32_t last, int32_t *n_cigar)
-{ // adapted from ksw_backtrack() from ksw2
+{
 	wf_cigar_t cigar = {0,0,0};
 	int32_t i = q_end, k = t_end, s = tb->n - 1;
 	while (i >= 0 && k >= 0) {
@@ -306,9 +310,9 @@ static uint32_t *wf_traceback(void *km, const mwf_opt_t *opt, wf_tb_t *tb, int32
 	return cigar.cigar;
 }
 
-void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
+static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t n_seg, wf_chkpt_t *seg, mwf_rst_t *r)
 {
-	int32_t lo = 0, hi = 0, max_pen, is_tb = !!(opt->flag&MWF_F_CIGAR), last_state = 0;
+	int32_t lo = 0, hi = 0, max_pen, sid, is_tb = !!(opt->flag&MWF_F_CIGAR), last_state = 0;
 	wf_stripe_t *wf;
 	wf_tb_t tb = {0,0,0};
 	char *pts, *pqs;
@@ -323,6 +327,7 @@ void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, i
 	wf_pad_str(km, tl, ts, ql, qs, &pts, &pqs);
 	assert(pts);
 
+	sid = 0;
 	while (1) {
 		int32_t d, *H = wf->a[wf->top].H;
 		for (d = lo; d <= hi; ++d) {
@@ -337,6 +342,8 @@ void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, i
 			H[d] = k;
 		}
 		if (d <= hi) break;
+		if (is_tb && seg && sid < n_seg && seg[sid].max_s == wf->s + 1)
+			lo = seg[sid].d - 1, hi = seg[sid].d + 1, ++sid;
 		if (lo > -tl) --lo;
 		if (hi < ql)  ++hi;
 		wf_next_basic(km, km_tb, opt, wf, is_tb? &tb : 0, lo, hi);
@@ -355,11 +362,15 @@ void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, i
 	wf_stripe_destroy(km, wf);
 }
 
+void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
+{
+}
+
 /*
  * Low-memory mode
  */
 typedef struct {
-	int32_t n, max_s;
+	int32_t n, n_intv, max_s;
 	int32_t *x;
 	uint64_t *intv;
 } wf_ss_t; // snapshot
@@ -378,6 +389,7 @@ static void wf_snapshot1(void *km, wf_stripe_t *sf, wf_ss_t *ss)
 		ss->n += sf->a[k].hi - sf->a[k].lo + 1;
 	}
 	ss->x = Kmalloc(km, int32_t, ss->n * 5);
+	ss->n_intv = sf->n;
 	ss->intv = Kmalloc(km, uint64_t, sf->n);
 	for (j = 0, t = 0; j < sf->n; ++j) {
 		wf_slice_t *p;
@@ -403,7 +415,7 @@ static void wf_snapshot(void *km, wf_sss_t *sss, wf_stripe_t *sf)
 	wf_snapshot1(km, sf, &sss->a[sss->n++]);
 }
 
-static void wf_next_seg(void *km, void *km_tb, const mwf_opt_t *opt, uint8_t *xbuf, wf_stripe_t *wf, wf_stripe_t *sf, int32_t lo, int32_t hi)
+static void wf_next_seg(void *km, const mwf_opt_t *opt, uint8_t *xbuf, wf_stripe_t *wf, wf_stripe_t *sf, int32_t lo, int32_t hi)
 {
 	int32_t d, *H, *E1, *E2, *F1, *F2;
 	const int32_t *pHx, *pHo1, *pHo2, *pE1, *pE2, *pF1, *pF2;
@@ -455,7 +467,7 @@ static void wf_next_seg(void *km, void *km_tb, const mwf_opt_t *opt, uint8_t *xb
 	H = ft->H, E1 = ft->E1, E2 = ft->E2, F1 = ft->F1, F2 = ft->F2;
 
 	//PRAGMA_LOOP_VECTORIZE
-	for (d = lo; d <= hi; ++d) { // this loop can't be vectorized by clang
+	for (d = lo; d <= hi; ++d) { // this loop can't be vectorized
 		uint8_t x = ax[lo];
 		E1[d] = (x&0x08) == 0? pHo1[d-1] : pE1[d-1];
 		E2[d] = (x&0x20) == 0? pHo2[d-1] : pE2[d-1];
@@ -466,24 +478,44 @@ static void wf_next_seg(void *km, void *km_tb, const mwf_opt_t *opt, uint8_t *xb
 	}
 }
 
-void mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
+static wf_chkpt_t *wf_traceback_seg(void *km, wf_sss_t *sss, int32_t last, int32_t *n_seg)
 {
-	int32_t lo = 0, hi = 0, max_pen;
+	int32_t j;
+	wf_chkpt_t *seg;
+	seg = Kmalloc(km, wf_chkpt_t, sss->n);
+	for (j = sss->n - 1; j >= 0; --j) {
+		int32_t k, m;
+		wf_ss_t *p = &sss->a[j];
+		for (k = 0, m = 0; k < p->n_intv; ++k) {
+			if (last >= m && last < m + (int32_t)p->intv[k])
+				break;
+			m += (int32_t)p->intv[k];
+		}
+		assert(k < p->n_intv);
+		seg[j].max_s = p->max_s;
+		seg[j].d = last - m;
+		last = p->x[last];
+	}
+	return seg;
+}
+
+wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t *n_seg_)
+{
+	int32_t lo = 0, hi = 0, max_pen, last, n_seg;
 	wf_stripe_t *wf, *sf;
 	wf_sss_t sss = {0,0,0};
 	char *pts, *pqs;
 	uint8_t *xbuf;
-	void *km_tb;
+	wf_chkpt_t *seg, *tmp;
 
-	memset(r, 0, sizeof(*r));
-	km_tb = km_init2(km, 8000000);
+	wf_pad_str(km, tl, ts, ql, qs, &pts, &pqs);
+
 	max_pen = opt->x;
 	max_pen = max_pen > opt->o1 + opt->e1? max_pen : opt->o1 + opt->e1;
 	max_pen = max_pen > opt->o2 + opt->e2? max_pen : opt->o2 + opt->e2;
+	xbuf = Kcalloc(km, uint8_t, tl + ql + 1);
 	wf = wf_stripe_init(km, max_pen);
 	sf = wf_stripe_init(km, max_pen);
-	wf_pad_str(km, tl, ts, ql, qs, &pts, &pqs);
-	xbuf = Kcalloc(km, uint8_t, tl + ql + 1);
 	assert(pts);
 
 	while (1) {
@@ -492,18 +524,37 @@ void mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int
 			int32_t k;
 			if (H[d] < -1 || d + H[d] < -1) continue;
 			k = wf_extend1_padded(pts, pqs, H[d], d);
-			if (k == tl - 1 && d + k == ql - 1) break;
+			if (k == tl - 1 && d + k == ql - 1) {
+				last = sf->a[wf->top].H[d];
+				break;
+			}
 			H[d] = k;
 		}
 		if (d <= hi) break;
 		if (lo > -tl) --lo;
 		if (hi < ql)  ++hi;
-		wf_next_seg(km, km_tb, opt, xbuf, wf, sf, lo, hi);
+		wf_next_seg(km, opt, xbuf, wf, sf, lo, hi);
+		if (wf->s % opt->step == 0)
+			wf_snapshot(km, &sss, sf);
 	}
-	r->s = wf->s;
-	kfree(km, xbuf);
-	kfree(km, pts);
-	km_destroy(km_tb);
+	seg = wf_traceback_seg(km, &sss, last, &n_seg);
 	wf_stripe_destroy(km, wf);
 	wf_stripe_destroy(km, sf);
+	kfree(km, xbuf);
+	kfree(km, pts);
+
+	tmp = seg;
+	seg = Kmalloc(km, wf_chkpt_t, n_seg);
+	memcpy(seg, tmp, n_seg * sizeof(*seg));
+	*n_seg_ = n_seg;
+	return seg;
+}
+
+void mwf_wfa(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
+{
+	int32_t n_seg = 0;
+	wf_chkpt_t *seg = 0;
+	if (opt->step > 0)
+		seg = mwf_wfa_seg(km, opt, tl, ts, ql, qs, &n_seg);
+	mwf_wfa_core(km, opt, tl, ts, ql, qs, n_seg, seg, r);
 }
