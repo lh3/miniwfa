@@ -310,12 +310,12 @@ static uint32_t *wf_traceback(void *km, const mwf_opt_t *opt, wf_tb_t *tb, int32
 	return cigar.cigar;
 }
 
-static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t n_seg, wf_chkpt_t *seg, mwf_rst_t *r)
+// pts and pqs MUST BE padded with wf_pad_str()
+static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char *pts, int32_t ql, const char *pqs, int32_t n_seg, wf_chkpt_t *seg, mwf_rst_t *r)
 {
 	int32_t lo = 0, hi = 0, max_pen, sid, is_tb = !!(opt->flag&MWF_F_CIGAR), last_state = 0;
 	wf_stripe_t *wf;
 	wf_tb_t tb = {0,0,0};
-	char *pts, *pqs;
 	void *km_tb;
 
 	memset(r, 0, sizeof(*r));
@@ -324,7 +324,6 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 	max_pen = max_pen > opt->o1 + opt->e1? max_pen : opt->o1 + opt->e1;
 	max_pen = max_pen > opt->o2 + opt->e2? max_pen : opt->o2 + opt->e2;
 	wf = wf_stripe_init(km, max_pen);
-	wf_pad_str(km, tl, ts, ql, qs, &pts, &pqs);
 	assert(pts);
 
 	sid = 0;
@@ -354,9 +353,8 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 		km_stat(km, &st);
 		fprintf(stderr, "tl=%d, ql=%d, cap=%ld, avail=%ld, n_blks=%ld\n", tl, ql, st.capacity, st.available, st.n_blocks);
 	}
-	kfree(km, pts);
 	if (is_tb) {
-		r->cigar = wf_traceback(km, opt, &tb, tl-1, ts, ql-1, qs, last_state, &r->n_cigar);
+		r->cigar = wf_traceback(km, opt, &tb, tl-1, pts, ql-1, pqs, last_state, &r->n_cigar);
 		km_destroy(km_tb);
 	}
 	wf_stripe_destroy(km, wf);
@@ -499,16 +497,13 @@ static wf_chkpt_t *wf_traceback_seg(void *km, wf_sss_t *sss, int32_t last, int32
 	return seg;
 }
 
-wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t *n_seg_)
+wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *pts, int32_t ql, const char *pqs, int32_t *n_seg_)
 {
 	int32_t lo = 0, hi = 0, max_pen, last, n_seg;
 	wf_stripe_t *wf, *sf;
 	wf_sss_t sss = {0,0,0};
-	char *pts, *pqs;
 	uint8_t *xbuf;
 	wf_chkpt_t *seg, *tmp;
-
-	wf_pad_str(km, tl, ts, ql, qs, &pts, &pqs);
 
 	max_pen = opt->x;
 	max_pen = max_pen > opt->o1 + opt->e1? max_pen : opt->o1 + opt->e1;
@@ -541,11 +536,11 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 	wf_stripe_destroy(km, wf);
 	wf_stripe_destroy(km, sf);
 	kfree(km, xbuf);
-	kfree(km, pts);
 
 	tmp = seg;
-	seg = Kmalloc(km, wf_chkpt_t, n_seg);
+	seg = Kmalloc(km, wf_chkpt_t, n_seg); // this is to reduce memory fragmentation
 	memcpy(seg, tmp, n_seg * sizeof(*seg));
+	kfree(km, tmp);
 	*n_seg_ = n_seg;
 	return seg;
 }
@@ -554,7 +549,11 @@ void mwf_wfa(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t
 {
 	int32_t n_seg = 0;
 	wf_chkpt_t *seg = 0;
+	char *pts, *pqs;
+
+	wf_pad_str(km, tl, ts, ql, qs, &pts, &pqs);
 	if (opt->step > 0)
-		seg = mwf_wfa_seg(km, opt, tl, ts, ql, qs, &n_seg);
-	mwf_wfa_core(km, opt, tl, ts, ql, qs, n_seg, seg, r);
+		seg = mwf_wfa_seg(km, opt, tl, pts, ql, pqs, &n_seg);
+	mwf_wfa_core(km, opt, tl, pts, ql, pqs, n_seg, seg, r);
+	kfree(km, pts);
 }
