@@ -386,10 +386,6 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 	wf_stripe_destroy(km, wf);
 }
 
-void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
-{
-}
-
 /*
  * Low-memory mode
  */
