@@ -354,3 +354,146 @@ void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, i
 	}
 	wf_stripe_destroy(km, wf);
 }
+
+/*
+ * Low-memory mode
+ */
+typedef struct {
+	int32_t n;
+	int32_t *x;
+	uint64_t *intv;
+} wf_ss_t; // snapshot
+
+typedef struct {
+	int32_t n, m;
+	wf_ss_t *a;
+} wf_sss_t;
+
+static void wf_snapshot1(void *km, wf_stripe_t *sf, wf_ss_t *ss)
+{
+	int32_t j, k, t;
+	ss->n = 0;
+	for (j = 0; j < sf->n; ++j)
+		ss->n += sf->a[j].hi - sf->a[j].lo + 1;
+	ss->x = Kmalloc(km, int32_t, ss->n * 5);
+	ss->intv = Kmalloc(km, uint64_t, sf->n);
+	for (j = 0, t = 0; j < sf->n; ++j) {
+		wf_slice_t *p = &sf->a[j];
+		ss->intv[j] = (uint64_t)p->lo << 32 | (p->hi - p->lo + 1);
+		for (k = p->lo; k <= p->hi; ++k) {
+			ss->x[t] = p->H[k],  p->H[k]  = t++;
+			ss->x[t] = p->E1[k], p->E1[k] = t++;
+			ss->x[t] = p->E2[k], p->E2[k] = t++;
+			ss->x[t] = p->F1[k], p->F1[k] = t++;
+			ss->x[t] = p->F2[k], p->F2[k] = t++;
+		}
+	}
+}
+
+static void wf_snapshot(void *km, wf_sss_t *sss, wf_stripe_t *sf)
+{
+	if (sss->n == sss->m) {
+		sss->m += (sss->m>>1) + 8;
+		sss->a = Krealloc(km, wf_ss_t, sss->a, sss->m);
+	}
+	wf_snapshot1(km, sf, &sss->a[sss->n++]);
+}
+
+static void wf_next_seg(void *km, void *km_tb, const mwf_opt_t *opt, wf_stripe_t *wf, wf_stripe_t *sf, int32_t lo, int32_t hi)
+{
+	int32_t d, *H, *E1, *E2, *F1, *F2, *sH, *sE1, *sE2, *sF1, *sF2;
+	const int32_t *pHx, *pHo1, *pHo2, *pE1, *pE2, *pF1, *pF2, *psHx, *psHo1, *psHo2, *psE1, *psE2, *psF1, *psF2;
+	const wf_slice_t *fx, *fo1, *fo2, *fe1, *fe2;
+	wf_slice_t *ft;
+
+	wf_stripe_add(km, wf, lo, hi);
+	ft  = &wf->a[wf->top];
+	fx  = wf_stripe_get(wf, opt->x);
+	fo1 = wf_stripe_get(wf, opt->o1 + opt->e1);
+	fo2 = wf_stripe_get(wf, opt->o2 + opt->e2);
+	fe1 = wf_stripe_get(wf, opt->e1);
+	fe2 = wf_stripe_get(wf, opt->e2);
+	pHx = fx->H, pHo1 = fo1->H, pHo2 = fo2->H, pE1 = fe1->E1, pE2 = fe2->E2, pF1 = fe1->F1, pF2 = fe2->F2;
+	H = ft->H, E1 = ft->E1, E2 = ft->E2, F1 = ft->F1, F2 = ft->F2;
+
+	wf_stripe_add(km, sf, lo, hi);
+	ft  = &wf->a[wf->top];
+	fx  = wf_stripe_get(sf, opt->x);
+	fo1 = wf_stripe_get(sf, opt->o1 + opt->e1);
+	fo2 = wf_stripe_get(sf, opt->o2 + opt->e2);
+	fe1 = wf_stripe_get(sf, opt->e1);
+	fe2 = wf_stripe_get(sf, opt->e2);
+	psHx = fx->H, psHo1 = fo1->H, psHo2 = fo2->H, psE1 = fe1->E1, psE2 = fe2->E2, psF1 = fe1->F1, psF2 = fe2->F2;
+	sH = ft->H, sE1 = ft->E1, sE2 = ft->E2, sF1 = ft->F1, sF2 = ft->F2;
+
+	PRAGMA_LOOP_VECTORIZE
+	for (d = lo; d <= hi; ++d) {
+		int32_t h, f, e, ze, zf, z;
+		sE1[d] = pHo1[d-1] >= pE1[d-1]? psHo1[d-1] : psE1[d-1];
+		E1[d]  = wf_max(pHo1[d-1], pE1[d-1]);
+		sE2[d] = pHo2[d-1] >= pE2[d-1]? psHo2[d-1] : psE2[d-1];
+		E2[d]  = wf_max(pHo2[d-1], pE2[d-1]);
+		ze = E1[d] >= E2[d]? sE1[d] : sE2[d];
+		e  = wf_max(E1[d], E2[d]);
+		sF1[d] = pHo1[d+1] >= pF1[d+1]? psHo1[d+1] : psF1[d+1];
+		F1[d]  = wf_max(pHo1[d+1], pF1[d+1]) + 1;
+		sF2[d] = pHo2[d+1] >= pF2[d+1]? psHo2[d+1] : psF2[d+1];
+		F2[d]  = wf_max(pHo2[d+1], pF2[d+1]) + 1;
+		zf = F1[d] >= F2[d]? sF1[d] : sF2[d];
+		f  = wf_max(F1[d], F2[d]);
+		z = e >= f? ze : zf;
+		h = wf_max(e, f);
+		z = pHx[d] + 1 >= h? psHx[d] : z;
+		H[d] = wf_max(pHx[d] + 1, h);
+		sH[d] = z;
+	}
+}
+
+void mwf_wfa(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
+{
+	int32_t lo = 0, hi = 0, max_pen, is_tb = !!(opt->flag&MWF_F_CIGAR), last_state = 0;
+	wf_stripe_t *wf;
+	wf_tb_t tb = {0,0,0};
+	char *pts, *pqs;
+	void *km_tb;
+
+	memset(r, 0, sizeof(*r));
+	km_tb = is_tb? km_init2(km, 8000000) : 0; // this is slightly smaller than the kalloc block size
+	max_pen = opt->x;
+	max_pen = max_pen > opt->o1 + opt->e1? max_pen : opt->o1 + opt->e1;
+	max_pen = max_pen > opt->o2 + opt->e2? max_pen : opt->o2 + opt->e2;
+	wf = wf_stripe_init(km, max_pen);
+	wf_pad_str(km, tl, ts, ql, qs, &pts, &pqs);
+	assert(pts);
+
+	while (1) {
+		int32_t d, *H = wf->a[wf->top].H;
+		for (d = lo; d <= hi; ++d) {
+			int32_t k;
+			if (H[d] < -1 || d + H[d] < -1) continue;
+			k = wf_extend1_padded(pts, pqs, H[d], d);
+			if (k == tl - 1 && d + k == ql - 1) {
+				if (k == H[d] && is_tb)
+					last_state = tb.a[tb.n-1].x[d - tb.a[tb.n-1].lo] & 7;
+				break;
+			}
+			H[d] = k;
+		}
+		if (d <= hi) break;
+		if (lo > -tl) --lo;
+		if (hi < ql)  ++hi;
+		wf_next_basic(km, km_tb, opt, wf, is_tb? &tb : 0, lo, hi);
+	}
+	r->s = wf->s;
+	if (km && (opt->flag&MWF_F_DEBUG)) {
+		km_stat_t st;
+		km_stat(km, &st);
+		fprintf(stderr, "tl=%d, ql=%d, cap=%ld, avail=%ld, n_blks=%ld\n", tl, ql, st.capacity, st.available, st.n_blocks);
+	}
+	kfree(km, pts);
+	if (is_tb) {
+		r->cigar = wf_traceback(km, opt, &tb, tl-1, ts, ql-1, qs, last_state, &r->n_cigar);
+		km_destroy(km_tb);
+	}
+	wf_stripe_destroy(km, wf);
+}
