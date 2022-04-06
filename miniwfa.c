@@ -189,7 +189,7 @@ static inline int32_t wf_extend1_padded(const char *ts, const char *qs, int32_t 
 }
 
 /*
- * Core algorithm
+ * Core wf_next() routines
  */
 
 // Force loop vectorization. Learned from WFA.
@@ -221,50 +221,68 @@ static void wf_next_prep(void *km, const mwf_opt_t *opt, wf_stripe_t *wf, int32_
 	*H = ft->H, *E1 = ft->E1, *E2 = ft->E2, *F1 = ft->F1, *F2 = ft->F2;
 }
 
+static void wf_next_score(int32_t lo, int32_t hi, int32_t *H, int32_t *E1, int32_t *F1, int32_t *E2, int32_t *F2,
+						  const int32_t *pHx, const int32_t *pHo1, const int32_t *pHo2,
+						  const int32_t *pE1, const int32_t *pF1, const int32_t *pE2, const int32_t *pF2)
+{
+	int32_t d;
+	PRAGMA_LOOP_VECTORIZE
+	for (d = lo; d <= hi; ++d) {
+		int32_t h, f, e;
+		E1[d] = wf_max(pHo1[d-1], pE1[d-1]);
+		E2[d] = wf_max(pHo2[d-1], pE2[d-1]);
+		e = wf_max(E1[d], E2[d]);
+		F1[d] = wf_max(pHo1[d+1], pF1[d+1]) + 1;
+		F2[d] = wf_max(pHo2[d+1], pF2[d+1]) + 1;
+		f = wf_max(F1[d], F2[d]);
+		h = wf_max(e, f);
+		H[d] = wf_max(pHx[d] + 1, h);
+		// if (H[d] >= -1) fprintf(stderr, "s=%d, d=%d, k=%d, (%d,%d)\n", wf->s, d, H[d], E1[d], F1[d]);
+	}
+}
+static void wf_next_tb(int32_t lo, int32_t hi, int32_t *H, int32_t *E1, int32_t *F1, int32_t *E2, int32_t *F2, uint8_t *ax,
+					   const int32_t *pHx, const int32_t *pHo1, const int32_t *pHo2,
+					   const int32_t *pE1, const int32_t *pF1, const int32_t *pE2, const int32_t *pF2)
+{
+	int32_t d;
+	PRAGMA_LOOP_VECTORIZE
+	for (d = lo; d <= hi; ++d) {
+		int32_t h, f, e;
+		uint8_t x = 0, ze, zf, z;
+		x |= pHo1[d-1] >= pE1[d-1]? 0 : 0x08;
+		E1[d] = wf_max(pHo1[d-1], pE1[d-1]);
+		x |= pHo2[d-1] >= pE2[d-1]? 0 : 0x20;
+		E2[d] = wf_max(pHo2[d-1], pE2[d-1]);
+		ze = E1[d] >= E2[d]? 1 : 3;
+		e = wf_max(E1[d], E2[d]);
+		x |= pHo1[d+1] >= pF1[d+1]? 0 : 0x10;
+		F1[d] = wf_max(pHo1[d+1], pF1[d+1]) + 1;
+		x |= pHo2[d+1] >= pF2[d+1]? 0 : 0x40;
+		F2[d] = wf_max(pHo2[d+1], pF2[d+1]) + 1;
+		zf = F1[d] >= F2[d]? 2 : 4;
+		f = wf_max(F1[d], F2[d]);
+		z = e >= f? ze : zf;
+		h = wf_max(e, f);
+		z = pHx[d] + 1 >= h? 0 : z;
+		H[d] = wf_max(pHx[d] + 1, h);
+		ax[d] = x | z;
+	}
+}
+
+/*
+ * Core algorithm
+ */
 static void wf_next_basic(void *km, void *km_tb, const mwf_opt_t *opt, wf_stripe_t *wf, wf_tb_t *tb, int32_t lo, int32_t hi)
 {
-	int32_t *H, *E1, *E2, *F1, *F2, d;
+	int32_t *H, *E1, *E2, *F1, *F2;
 	const int32_t *pHx, *pHo1, *pHo2, *pE1, *pE2, *pF1, *pF2;
 	wf_next_prep(km, opt, wf, lo, hi, &H, &E1, &F1, &E2, &F2, &pHx, &pHo1, &pHo2, &pE1, &pF1, &pE2, &pF2);
-	if (!tb) {
-		PRAGMA_LOOP_VECTORIZE
-		for (d = lo; d <= hi; ++d) {
-			int32_t h, f, e;
-			E1[d] = wf_max(pHo1[d-1], pE1[d-1]);
-			E2[d] = wf_max(pHo2[d-1], pE2[d-1]);
-			e = wf_max(E1[d], E2[d]);
-			F1[d] = wf_max(pHo1[d+1], pF1[d+1]) + 1;
-			F2[d] = wf_max(pHo2[d+1], pF2[d+1]) + 1;
-			f = wf_max(F1[d], F2[d]);
-			h = wf_max(e, f);
-			H[d] = wf_max(pHx[d] + 1, h);
-			// if (H[d] >= -1) fprintf(stderr, "s=%d, d=%d, k=%d, (%d,%d)\n", wf->s, d, H[d], E1[d], F1[d]);
-		}
-	} else {
+	if (tb) {
 		uint8_t *ax;
 		ax = wf_tb_add(km_tb, tb, lo, hi)->x - lo;
-		PRAGMA_LOOP_VECTORIZE
-		for (d = lo; d <= hi; ++d) {
-			int32_t h, f, e;
-			uint8_t x = 0, ze, zf, z;
-			x |= pHo1[d-1] >= pE1[d-1]? 0 : 0x08;
-			E1[d] = wf_max(pHo1[d-1], pE1[d-1]);
-			x |= pHo2[d-1] >= pE2[d-1]? 0 : 0x20;
-			E2[d] = wf_max(pHo2[d-1], pE2[d-1]);
-			ze = E1[d] >= E2[d]? 1 : 3;
-			e = wf_max(E1[d], E2[d]);
-			x |= pHo1[d+1] >= pF1[d+1]? 0 : 0x10;
-			F1[d] = wf_max(pHo1[d+1], pF1[d+1]) + 1;
-			x |= pHo2[d+1] >= pF2[d+1]? 0 : 0x40;
-			F2[d] = wf_max(pHo2[d+1], pF2[d+1]) + 1;
-			zf = F1[d] >= F2[d]? 2 : 4;
-			f = wf_max(F1[d], F2[d]);
-			z = e >= f? ze : zf;
-			h = wf_max(e, f);
-			z = pHx[d] + 1 >= h? 0 : z;
-			H[d] = wf_max(pHx[d] + 1, h);
-			ax[d] = x | z;
-		}
+		wf_next_tb(lo, hi, H, E1, F1, E2, F2, ax, pHx, pHo1, pHo2, pE1, pF1, pE2, pF2);
+	} else {
+		wf_next_score(lo, hi, H, E1, F1, E2, F2, pHx, pHo1, pHo2, pE1, pF1, pE2, pF2);
 	}
 }
 
@@ -438,29 +456,7 @@ static void wf_next_seg(void *km, const mwf_opt_t *opt, uint8_t *xbuf, wf_stripe
 	uint8_t *ax = xbuf - lo;
 
 	wf_next_prep(km, opt, wf, lo, hi, &H, &E1, &F1, &E2, &F2, &pHx, &pHo1, &pHo2, &pE1, &pF1, &pE2, &pF2);
-	PRAGMA_LOOP_VECTORIZE
-	for (d = lo; d <= hi; ++d) { // same as the loop in wf_next_basic()
-		int32_t h, f, e;
-		uint8_t x = 0, ze, zf, z;
-		x |= pHo1[d-1] >= pE1[d-1]? 0 : 0x08;
-		E1[d] = wf_max(pHo1[d-1], pE1[d-1]);
-		x |= pHo2[d-1] >= pE2[d-1]? 0 : 0x20;
-		E2[d] = wf_max(pHo2[d-1], pE2[d-1]);
-		ze = E1[d] >= E2[d]? 1 : 3;
-		e = wf_max(E1[d], E2[d]);
-		x |= pHo1[d+1] >= pF1[d+1]? 0 : 0x10;
-		F1[d] = wf_max(pHo1[d+1], pF1[d+1]) + 1;
-		x |= pHo2[d+1] >= pF2[d+1]? 0 : 0x40;
-		F2[d] = wf_max(pHo2[d+1], pF2[d+1]) + 1;
-		zf = F1[d] >= F2[d]? 2 : 4;
-		f = wf_max(F1[d], F2[d]);
-		z = e >= f? ze : zf;
-		h = wf_max(e, f);
-		z = pHx[d] + 1 >= h? 0 : z;
-		H[d] = wf_max(pHx[d] + 1, h);
-		ax[d] = x | z;
-	}
-
+	wf_next_tb(lo, hi, H, E1, F1, E2, F2, ax, pHx, pHo1, pHo2, pE1, pF1, pE2, pF2);
 	wf_next_prep(km, opt, sf, lo, hi, &H, &E1, &F1, &E2, &F2, &pHx, &pHo1, &pHo2, &pE1, &pF1, &pE2, &pF2);
 	//PRAGMA_LOOP_VECTORIZE
 	for (d = lo; d <= hi; ++d) { // this loop can't be vectorized
