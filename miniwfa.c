@@ -372,14 +372,14 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 			H[d] = k;
 		}
 		if (d <= p->hi) break;
+		lo = wf->lo > -tl? wf->lo - 1 : -tl;
+		hi = wf->hi <  ql? wf->hi + 1 :  ql;
 		if (is_tb && seg && sid < n_seg && seg[sid].max_s == wf->s + 1) {
-			//fprintf(stderr, "s=%d, [%d,%d], d=%d\n", wf->s + 1, lo, hi, seg[sid].d);
+			fprintf(stderr, "s=%d, [%d,%d], d=%d\n", wf->s + 1, p->lo, p->hi, seg[sid].d);
 			assert(seg[sid].d >= p->lo && seg[sid].d <= p->hi);
 			//lo = seg[sid].d - 1, hi = seg[sid].d + 1;
 			++sid;
 		}
-		lo = wf->lo > -tl? wf->lo - 1 : -tl;
-		hi = wf->hi <  ql? wf->hi + 1 :  ql;
 		wf_next_basic(km, km_tb, opt, wf, is_tb? &tb : 0, lo, hi);
 	}
 	r->s = wf->s;
@@ -464,7 +464,6 @@ static void wf_next_seg(void *km, const mwf_opt_t *opt, uint8_t *xbuf, wf_stripe
 	wf_next_prep(km, opt, wf, lo, hi, &H, &E1, &F1, &E2, &F2, &pHx, &pHo1, &pHo2, &pE1, &pF1, &pE2, &pF2);
 	wf_next_tb(lo, hi, H, E1, F1, E2, F2, ax, pHx, pHo1, pHo2, pE1, pF1, pE2, pF2);
 	wf_next_prep(km, opt, sf, lo, hi, &H, &E1, &F1, &E2, &F2, &pHx, &pHo1, &pHo2, &pE1, &pF1, &pE2, &pF2);
-	//PRAGMA_LOOP_VECTORIZE
 	for (d = lo; d <= hi; ++d) { // this loop can't be vectorized
 		uint8_t x = ax[d];
 		E1[d] = (x&0x08) == 0? pHo1[d-1] : pE1[d-1];
@@ -504,7 +503,7 @@ static wf_chkpt_t *wf_traceback_seg(void *km, wf_sss_t *sss, int32_t last, int32
 
 wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *pts, int32_t ql, const char *pqs, int32_t *n_seg_)
 {
-	int32_t lo = 0, hi = 0, max_pen, last, n_seg;
+	int32_t max_pen, last, n_seg;
 	wf_stripe_t *wf, *sf;
 	wf_sss_t sss = {0,0,0};
 	uint8_t *xbuf;
@@ -519,8 +518,9 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 	assert(pts);
 
 	while (1) {
-		int32_t d, *H = wf->a[wf->top].H;
-		for (d = lo; d <= hi; ++d) {
+		wf_slice_t *p = &wf->a[wf->top];
+		int32_t d, lo, hi, *H = p->H;
+		for (d = p->lo; d <= p->hi; ++d) {
 			int32_t k;
 			if (H[d] < -1 || d + H[d] < -1 || H[d] >= tl || d + H[d] >= ql) continue;
 			k = wf_extend1_padded(pts, pqs, H[d], d);
@@ -530,9 +530,9 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 			}
 			H[d] = k;
 		}
-		if (d <= hi) break;
-		if (lo > -tl) --lo;
-		if (hi < ql) ++hi;
+		if (d <= p->hi) break;
+		lo = wf->lo > -tl? wf->lo - 1 : -tl;
+		hi = wf->hi <  ql? wf->hi + 1 :  ql;
 		if ((wf->s + 1) % opt->step == 0)
 			wf_snapshot(km, &sss, sf);
 		wf_next_seg(km, opt, xbuf, wf, sf, lo, hi);
