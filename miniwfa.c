@@ -372,14 +372,13 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 			H[d] = k;
 		}
 		if (d <= p->hi) break;
-		lo = wf->lo > -tl? wf->lo - 1 : -tl;
-		hi = wf->hi <  ql? wf->hi + 1 :  ql;
 		if (is_tb && seg && sid < n_seg && seg[sid].max_s == wf->s + 1) {
-			fprintf(stderr, "s=%d, [%d,%d], d=%d\n", wf->s + 1, p->lo, p->hi, seg[sid].d);
-			assert(seg[sid].d >= p->lo && seg[sid].d <= p->hi);
-			//lo = seg[sid].d - 1, hi = seg[sid].d + 1;
+			assert(seg[sid].d >= wf->lo && seg[sid].d <= wf->hi);
+			wf->lo = wf->hi = seg[sid].d;
 			++sid;
 		}
+		lo = wf->lo > -tl? wf->lo - 1 : -tl;
+		hi = wf->hi <  ql? wf->hi + 1 :  ql;
 		wf_next_basic(km, km_tb, opt, wf, is_tb? &tb : 0, lo, hi);
 	}
 	r->s = wf->s;
@@ -413,10 +412,8 @@ static void wf_snapshot1(void *km, wf_stripe_t *sf, wf_ss_t *ss)
 {
 	int32_t j, k, t;
 	ss->n = 0, ss->max_s = sf->s;
-	for (j = 0; j < sf->n; ++j) {
-		k = (sf->top + 1 + j) % sf->n;
-		ss->n += 5 * (sf->a[k].hi - sf->a[k].lo + 1);
-	}
+	for (j = 0; j < sf->n; ++j)
+		ss->n += 5 * (sf->a[j].hi - sf->a[j].lo + 1);
 	ss->x = Kmalloc(km, int32_t, ss->n);
 	ss->n_intv = sf->n;
 	ss->intv = Kmalloc(km, uint64_t, ss->n_intv);
@@ -424,7 +421,7 @@ static void wf_snapshot1(void *km, wf_stripe_t *sf, wf_ss_t *ss)
 		wf_slice_t *p;
 		k = (sf->top + 1 + j) % sf->n;
 		p = &sf->a[k];
-		ss->intv[k] = (uint64_t)p->lo << 32 | (p->hi - p->lo + 1) * 5;
+		ss->intv[j] = (uint64_t)p->lo << 32 | (p->hi - p->lo + 1) * 5;
 		for (k = p->lo; k <= p->hi; ++k) {
 			ss->x[t] = p->H[k],  p->H[k]  = t++;
 			ss->x[t] = p->E1[k], p->E1[k] = t++;
@@ -492,12 +489,12 @@ static wf_chkpt_t *wf_traceback_seg(void *km, wf_sss_t *sss, int32_t last, int32
 			m += (int32_t)p->intv[k];
 		}
 		assert(k < p->n_intv);
-		seg[j].max_s = p->max_s;
+		seg[j].max_s = p->max_s - (p->n_intv - k - 1);
 		seg[j].d = (int32_t)(p->intv[k]>>32) + (last - m) / 5;
-		fprintf(stderr, "last=%d, d0=%d, k=%d, intv=%d, max_s=%d\n", last, (int32_t)(p->intv[k]>>32), k, p->n_intv, p->max_s);
+		//fprintf(stderr, "last=%d, last-m=%d, d0=%d, k=%d, intv=%d, max_s=%d\n", last, last - m, (int32_t)(p->intv[k]>>32), k, p->n_intv, p->max_s);
 		last = p->x[last];
 	}
-	fprintf(stderr, "last=%d\n", last);
+	assert(last == -1);
 	return seg;
 }
 
