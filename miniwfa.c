@@ -353,6 +353,7 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 	assert(pts);
 
 	sid = 0;
+	fprintf(stderr, "n_seg=%d\n", n_seg);
 	while (1) {
 		int32_t d, *H = wf->a[wf->top].H;
 		for (d = lo; d <= hi; ++d) {
@@ -367,8 +368,11 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 			H[d] = k;
 		}
 		if (d <= hi) break;
-		if (is_tb && seg && sid < n_seg && seg[sid].max_s == wf->s + 1)
+		if (is_tb && seg && sid < n_seg && seg[sid].max_s == wf->s + 1) {
+			fprintf(stderr, "s=%d, [%d,%d], d=%d\n", wf->s + 1, lo, hi, seg[sid].d);
+			assert(seg[sid].d >= lo && seg[sid].d <= hi);
 			lo = seg[sid].d - 1, hi = seg[sid].d + 1, ++sid;
+		}
 		if (lo > -tl) --lo;
 		if (hi < ql)  ++hi;
 		wf_next_basic(km, km_tb, opt, wf, is_tb? &tb : 0, lo, hi);
@@ -408,9 +412,9 @@ static void wf_snapshot1(void *km, wf_stripe_t *sf, wf_ss_t *ss)
 		k = (sf->top + 1 + j) % sf->n;
 		ss->n += 5 * (sf->a[k].hi - sf->a[k].lo + 1);
 	}
-	ss->x = Kmalloc(km, int32_t, ss->n * 5);
+	ss->x = Kmalloc(km, int32_t, ss->n);
 	ss->n_intv = sf->n;
-	ss->intv = Kmalloc(km, uint64_t, sf->n);
+	ss->intv = Kmalloc(km, uint64_t, ss->n_intv);
 	for (j = 0, t = 0; j < sf->n; ++j) {
 		wf_slice_t *p;
 		k = (sf->top + 1 + j) % sf->n;
@@ -419,11 +423,12 @@ static void wf_snapshot1(void *km, wf_stripe_t *sf, wf_ss_t *ss)
 		for (k = p->lo; k <= p->hi; ++k) {
 			ss->x[t] = p->H[k],  p->H[k]  = t++;
 			ss->x[t] = p->E1[k], p->E1[k] = t++;
-			ss->x[t] = p->E2[k], p->E2[k] = t++;
 			ss->x[t] = p->F1[k], p->F1[k] = t++;
+			ss->x[t] = p->E2[k], p->E2[k] = t++;
 			ss->x[t] = p->F2[k], p->F2[k] = t++;
 		}
 	}
+	assert(t == ss->n);
 }
 
 static void wf_snapshot(void *km, wf_sss_t *sss, wf_stripe_t *sf)
@@ -458,8 +463,8 @@ static void wf_next_seg(void *km, const mwf_opt_t *opt, uint8_t *xbuf, wf_stripe
 	for (d = lo; d <= hi; ++d) { // this loop can't be vectorized
 		uint8_t x = ax[d];
 		E1[d] = (x&0x08) == 0? pHo1[d-1] : pE1[d-1];
-		E2[d] = (x&0x20) == 0? pHo2[d-1] : pE2[d-1];
 		F1[d] = (x&0x10) == 0? pHo1[d+1] : pF1[d+1];
+		E2[d] = (x&0x20) == 0? pHo2[d-1] : pE2[d-1];
 		F2[d] = (x&0x40) == 0? pHo2[d+1] : pF2[d+1];
 		x &= 0x7;
 		H[d] = x == 0? pHx[d] : x == 1? E1[d] : x == 2? F1[d] : x == 3? E2[d] : F2[d];
@@ -470,6 +475,7 @@ static wf_chkpt_t *wf_traceback_seg(void *km, wf_sss_t *sss, int32_t last, int32
 {
 	int32_t j;
 	wf_chkpt_t *seg;
+	*n_seg = sss->n;
 	seg = Kmalloc(km, wf_chkpt_t, sss->n);
 	for (j = sss->n - 1; j >= 0; --j) {
 		int32_t k, m;
@@ -481,7 +487,7 @@ static wf_chkpt_t *wf_traceback_seg(void *km, wf_sss_t *sss, int32_t last, int32
 		}
 		assert(k < p->n_intv);
 		seg[j].max_s = p->max_s;
-		seg[j].d = last - m;
+		seg[j].d = (int32_t)(p->intv[k]>>32) + (last - m) / 5;
 		last = p->x[last];
 	}
 	return seg;
