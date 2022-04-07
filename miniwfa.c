@@ -71,7 +71,7 @@ typedef struct {
 } wf_slice_t;
 
 typedef struct {
-	int32_t s, top, n, max_pen;
+	int32_t s, top, n, max_pen, lo, hi;
 	wf_slice_t *a;
 } wf_stripe_t;
 
@@ -107,6 +107,7 @@ static wf_stripe_t *wf_stripe_init(void *km, int32_t max_pen)
 	wf->max_pen = max_pen;
 	wf->n = max_pen + 1;
 	wf->a = Kcalloc(km, wf_slice_t, wf->n);
+	wf->lo = wf->hi = 0;
 	for (i = 0; i < wf->n; ++i) {
 		wf_slice_t *f;
 		wf_stripe_add(km, wf, 0, 0);
@@ -284,6 +285,8 @@ static void wf_next_basic(void *km, void *km_tb, const mwf_opt_t *opt, wf_stripe
 	} else {
 		wf_next_score(lo, hi, H, E1, F1, E2, F2, pHx, pHo1, pHo2, pE1, pF1, pE2, pF2);
 	}
+	if (H[lo] >= -1 || E1[lo] >= -1 || F1[lo] >= -1 || E2[lo] >= -1 || F2[lo] >= -1) wf->lo = lo;
+	if (H[hi] >= -1 || E1[hi] >= -1 || F1[hi] >= -1 || E2[hi] >= -1 || F2[hi] >= -1) wf->hi = hi;
 }
 
 static uint32_t *wf_traceback(void *km, const mwf_opt_t *opt, wf_tb_t *tb, int32_t t_end, const char *ts, int32_t q_end, const char *qs, int32_t last, int32_t *n_cigar)
@@ -339,7 +342,7 @@ static uint32_t *wf_traceback(void *km, const mwf_opt_t *opt, wf_tb_t *tb, int32
 // pts and pqs MUST BE padded with wf_pad_str()
 static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char *pts, int32_t ql, const char *pqs, int32_t n_seg, wf_chkpt_t *seg, mwf_rst_t *r)
 {
-	int32_t lo = 0, hi = 0, max_pen, sid, is_tb = !!(opt->flag&MWF_F_CIGAR), last_state = 0;
+	int32_t max_pen, sid, is_tb = !!(opt->flag&MWF_F_CIGAR), last_state = 0;
 	wf_stripe_t *wf;
 	wf_tb_t tb = {0,0,0};
 	void *km_tb;
@@ -353,13 +356,14 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 	assert(pts);
 
 	sid = 0;
-	fprintf(stderr, "n_seg=%d\n", n_seg);
 	while (1) {
-		int32_t d, *H = wf->a[wf->top].H;
-		for (d = lo; d <= hi; ++d) {
-			int32_t k;
-			if (H[d] < -1 || d + H[d] < -1) continue;
+		wf_slice_t *p = &wf->a[wf->top];
+		int32_t d, lo, hi, *H = p->H;
+		for (d = p->lo; d <= p->hi; ++d) {
+			int32_t k = 0;
+			if (H[d] < -1 || d + H[d] < -1 || H[d] >= tl || d + H[d] >= ql) continue;
 			k = wf_extend1_padded(pts, pqs, H[d], d);
+			//fprintf(stderr, "[s=%d] [%d,%d]:%d %d->%d,%d,%d,%d,%d\n", wf->s, p->lo, p->hi, d, H[d], k, wf->a[wf->top].E1[d], wf->a[wf->top].F1[d], wf->a[wf->top].E2[d], wf->a[wf->top].F2[d]);
 			if (k == tl - 1 && d + k == ql - 1) {
 				if (k == H[d] && is_tb)
 					last_state = tb.a[tb.n-1].x[d - tb.a[tb.n-1].lo] & 7;
@@ -367,14 +371,15 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 			}
 			H[d] = k;
 		}
-		if (d <= hi) break;
+		if (d <= p->hi) break;
 		if (is_tb && seg && sid < n_seg && seg[sid].max_s == wf->s + 1) {
-			fprintf(stderr, "s=%d, [%d,%d], d=%d\n", wf->s + 1, lo, hi, seg[sid].d);
-			assert(seg[sid].d >= lo && seg[sid].d <= hi);
-			lo = seg[sid].d - 1, hi = seg[sid].d + 1, ++sid;
+			//fprintf(stderr, "s=%d, [%d,%d], d=%d\n", wf->s + 1, lo, hi, seg[sid].d);
+			assert(seg[sid].d >= p->lo && seg[sid].d <= p->hi);
+			//lo = seg[sid].d - 1, hi = seg[sid].d + 1;
+			++sid;
 		}
-		if (lo > -tl) --lo;
-		if (hi < ql)  ++hi;
+		lo = wf->lo > -tl? wf->lo - 1 : -tl;
+		hi = wf->hi <  ql? wf->hi + 1 :  ql;
 		wf_next_basic(km, km_tb, opt, wf, is_tb? &tb : 0, lo, hi);
 	}
 	r->s = wf->s;
@@ -469,6 +474,8 @@ static void wf_next_seg(void *km, const mwf_opt_t *opt, uint8_t *xbuf, wf_stripe
 		x &= 0x7;
 		H[d] = x == 0? pHx[d] : x == 1? E1[d] : x == 2? F1[d] : x == 3? E2[d] : F2[d];
 	}
+	if (H[lo] >= -1 || E1[lo] >= -1 || F1[lo] >= -1 || E2[lo] >= -1 || F2[lo] >= -1) wf->lo = lo;
+	if (H[hi] >= -1 || E1[hi] >= -1 || F1[hi] >= -1 || E2[hi] >= -1 || F2[hi] >= -1) wf->hi = hi;
 }
 
 static wf_chkpt_t *wf_traceback_seg(void *km, wf_sss_t *sss, int32_t last, int32_t *n_seg)
@@ -488,8 +495,10 @@ static wf_chkpt_t *wf_traceback_seg(void *km, wf_sss_t *sss, int32_t last, int32
 		assert(k < p->n_intv);
 		seg[j].max_s = p->max_s;
 		seg[j].d = (int32_t)(p->intv[k]>>32) + (last - m) / 5;
+		fprintf(stderr, "last=%d, d0=%d, k=%d, intv=%d, max_s=%d\n", last, (int32_t)(p->intv[k]>>32), k, p->n_intv, p->max_s);
 		last = p->x[last];
 	}
+	fprintf(stderr, "last=%d\n", last);
 	return seg;
 }
 
@@ -513,7 +522,7 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 		int32_t d, *H = wf->a[wf->top].H;
 		for (d = lo; d <= hi; ++d) {
 			int32_t k;
-			if (H[d] < -1 || d + H[d] < -1) continue;
+			if (H[d] < -1 || d + H[d] < -1 || H[d] >= tl || d + H[d] >= ql) continue;
 			k = wf_extend1_padded(pts, pqs, H[d], d);
 			if (k == tl - 1 && d + k == ql - 1) {
 				last = sf->a[sf->top].H[d];
@@ -523,10 +532,10 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 		}
 		if (d <= hi) break;
 		if (lo > -tl) --lo;
-		if (hi < ql)  ++hi;
-		wf_next_seg(km, opt, xbuf, wf, sf, lo, hi);
-		if (wf->s % opt->step == 0)
+		if (hi < ql) ++hi;
+		if ((wf->s + 1) % opt->step == 0)
 			wf_snapshot(km, &sss, sf);
+		wf_next_seg(km, opt, xbuf, wf, sf, lo, hi);
 	}
 	seg = wf_traceback_seg(km, &sss, last, &n_seg);
 	if (km && (opt->flag&MWF_F_DEBUG)) {
