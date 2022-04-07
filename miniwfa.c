@@ -461,14 +461,25 @@ static void wf_next_seg(void *km, const mwf_opt_t *opt, uint8_t *xbuf, wf_stripe
 	wf_next_prep(km, opt, wf, lo, hi, &H, &E1, &F1, &E2, &F2, &pHx, &pHo1, &pHo2, &pE1, &pF1, &pE2, &pF2);
 	wf_next_tb(lo, hi, H, E1, F1, E2, F2, ax, pHx, pHo1, pHo2, pE1, pF1, pE2, pF2);
 	wf_next_prep(km, opt, sf, lo, hi, &H, &E1, &F1, &E2, &F2, &pHx, &pHo1, &pHo2, &pE1, &pF1, &pE2, &pF2);
-	for (d = lo; d <= hi; ++d) { // this loop can't be vectorized
+	PRAGMA_LOOP_VECTORIZE
+	for (d = lo; d <= hi; ++d) {
 		uint8_t x = ax[d];
-		E1[d] = (x&0x08) == 0? pHo1[d-1] : pE1[d-1];
-		F1[d] = (x&0x10) == 0? pHo1[d+1] : pF1[d+1];
-		E2[d] = (x&0x20) == 0? pHo2[d-1] : pE2[d-1];
-		F2[d] = (x&0x40) == 0? pHo2[d+1] : pF2[d+1];
-		x &= 0x7;
-		H[d] = x == 0? pHx[d] : x == 1? E1[d] : x == 2? F1[d] : x == 3? E2[d] : F2[d];
+		int32_t a, b, e1, f1, e2, f2, h;
+		a = pHo1[d-1], b = pE1[d-1];
+		e1 = E1[d] = (x&0x08) == 0? a : b;
+		a = pHo1[d+1], b = pF1[d+1];
+		f1 = F1[d] = (x&0x10) == 0? a : b;
+		a = pHo2[d-1], b = pE2[d-1];
+		e2 = E2[d] = (x&0x20) == 0? a : b;
+		a = pHo2[d+1], b = pF2[d+1];
+		f2 = F2[d] = (x&0x40) == 0? a : b;
+		x &= 7;
+		h = pHx[d];
+		h = x == 1? e1 : h;
+		h = x == 2? f1 : h;
+		h = x == 3? e2 : h;
+		h = x == 4? f2 : h;
+		H[d] = h;
 	}
 	if (H[lo] >= -1 || E1[lo] >= -1 || F1[lo] >= -1 || E2[lo] >= -1 || F2[lo] >= -1) wf->lo = lo;
 	if (H[hi] >= -1 || E1[hi] >= -1 || F1[hi] >= -1 || E2[hi] >= -1 || F2[hi] >= -1) wf->hi = hi;
