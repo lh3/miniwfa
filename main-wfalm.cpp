@@ -19,6 +19,7 @@ int main(int argc, char *argv[])
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: test-wfalm [-m 1|2|3] <in1.fa> <in2.fa>\n");
+		fprintf(stderr, "Notes: -m1 for recursive; -m2 for low-mem; -m3 for full\n");
 		return 1;
 	}
 
