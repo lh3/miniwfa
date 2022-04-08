@@ -70,7 +70,9 @@ gcc-10.3.0 (no LTO) on a CentOS 7 server equipped with two Xeon 6130 CPUs.
 When only calculating the alignment score, WFA2-lib is the fastest, probably
 due to its better engineering. When reporting the alignment path, miniwfa is
 the fastest. The recursive algorithm in wfalm uses the least memory but it is
-several times slower.
+several times slower. At present, WFA2-lib and wfalm use 20 bytes per traceback
+entry. I expect them to use much less memory when they start to adopt the
+1-byte-per-entry representation.
 
 [wfa-pub]: https://pubmed.ncbi.nlm.nih.gov/32915952/
 [wfa]: https://github.com/smarco/WFA2-lib
