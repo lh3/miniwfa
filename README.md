@@ -13,8 +13,8 @@ cp miniwfa.{c,h} kalloc.{c,h} your_src/
 
 Miniwfa is a reimplementation of the WaveFront Alignment algorithm
 ([WFA][wfa-pub]) with 2-piece affine gap penalty. When reporting base alignment
-for megabase-long sequences, miniwfa is sometimes a few times faster and uses a
-fraction of memory in comparison to [WFA2-lib][wfa] and [wfalm][wfalm] in their
+for megabase-long sequences, miniwfa is sometimes a few times faster and tends
+to use less memory in comparison to [WFA2-lib][wfa] and [wfalm][wfalm] in their
 low-memory mode.
 
 ## Algorithm
@@ -38,33 +38,35 @@ round, it resets the bandwidth to 1 whenever it reaches a stripe. Miniwfa
 approximately uses (20*qs*<sup>2</sup>/*p*+*ps*) bytes of memory. Here, *s* is
 the optimal alignment penalty, *p* is the distance between stripes and
 *q*=max(*x*,*o*<sub>1</sub>+*e*<sub>1</sub>,*o*<sub>2</sub>+*e*<sub>2</sub>)
-is the maximal penalty between adjacent entries.
+is the maximal penalty between adjacent entries. The time complexity is
+*O*(*n*(*s*+*p*)) where *n* is the length of the longer sequence.
 
 ## Evaluation
 
 We only use two pairs of sequences for evaluation. The first pair consists of
 the two haplotypes of NA19240 around the C4A/C4B gene. They are 100-150kb in
 length with a penalty of 27k. The second pair consists of GRCh38 and
-CHM13 around MHC. They are about 5Mb in length with an edit distance of 232kb.
+CHM13 around MHC. They are about 5Mb in length with a penalty of 232kb.
 These sequences can be found [via Zenodo][seq-zenodo]. We compiled the code
 with gcc-10.3.0 (no LTO) on a CentOS 7 server equipped with two Xeon 6130 CPUs.
 
-|Method |Path|CMD             |t<sub>MHC</sub> (s)|M<sub>MHC</sub> (GB)|t<sub>C4</sub> (s)|M<sub>C4</sub> (MB)|Comment|
-|:------|:---|:---------------|------------------:|-------------------:|-----------------:|------------------:|:------|
-|miniwfa|N   |test-mwf        |448   |0.5    |4.3   |33   |Score only|
-|miniwfa|Y   |test-mwf -c     |566   |51.6   |6.1   |736  |High-mem|
-|miniwfa|Y   |test-mwf -cp5000|807   |6.2    |10.0  |266  |Low-mem|
-|wfa2-lib|N  |test-wfa        |349   |0.6    |2.5   |55   |Score only|
-|wfa2-lib|Y  |test-wfa -cm1   |4915  |22.4   |18.0  |888  |Low-mem|
-|wfa2-lib|Y  |test-wfa -cm2   |2634  |34.4   |18.4  |1173 |Med-mem|
-|wfa2-lib|Y  |test-wfa -cm3   |      |~1000  |8.6   |14332|High-mem|
-|wfalm   |Y  |test-wfalm -m1  |      |       |66.3  |300  |Recursive|
-|wfalm   |Y  |test-wfalm -m2  |2734  |38.1   |28.6  |1241 |Low-mem|
-|wfalm   |Y  |test-wfalm -m3  |      |~1000  |15.4  |13883|High-mem|
+|Method             |Path|Command line    |t<sub>MHC</sub> (s)|M<sub>MHC</sub> (GB)|t<sub>C4</sub> (s)|M<sub>C4</sub> (MB)|
+|:------------------|:---|:---------------|------------------:|-------------------:|-----------------:|------------------:|
+|miniwfa score-only |N   |test-mwf        |448   |0.5    |4.3   |33   |
+|miniwfa high-mem   |Y   |test-mwf -c     |566   |51.6   |6.1   |736  |
+|miniwfa low-mem    |Y   |test-mwf -cp5000|807   |6.2    |10.0  |266  |
+|wfa2-lib score-only|N   |test-wfa        |349   |0.6    |2.5   |55   |
+|wfa2-lib high-mem  |Y   |test-wfa -cm3   |      |~1000  |8.6   |14332|
+|wfa2-lib med-mem   |Y   |test-wfa -cm2   |2634  |34.4   |18.4  |1173 |
+|wfa2-lib low-mem   |Y   |test-wfa -cm1   |3733  |23.6   |18.0  |888  |
+|wfalm high-mem     |Y   |test-wfalm -m3  |      |~1000  |15.4  |13883
+|wfalm low-mem      |Y   |test-wfalm -m2  |2734  |38.1   |28.6  |1241 |
+|wfalm recursive    |Y   |test-wfalm -m1  |7431  |3.1    |66.3  |300  |
 
 When only calculating the alignment score, WFA2-lib is the fastest, probably
 due to its better engineering. When reporting the alignment path, miniwfa is
-the fastest and uses the least memory.
+the fastest. The recursive algorithm in wfalm uses the least memory but it is
+several times slower.
 
 [wfa-pub]: https://pubmed.ncbi.nlm.nih.gov/32915952/
 [wfa]: https://github.com/smarco/WFA2-lib
