@@ -1,11 +1,11 @@
 CC=			gcc
 CXX=		g++
-CFLAGS=		-g -Wall -O2
-CXXFLAGS=	$(CFLAGS)
+CFLAGS=		-g -Wall -O2 -march=native
+CXXFLAGS=	$(CFLAGS) -std=c++14
 CPPFLAGS=
 INCLUDES=
 OBJS=		kalloc.o miniwfa.o mwf-dbg.o
-PROG=		mwf-test wfa-test
+PROG=		test-mwf test-wfa test-wfalm
 LIBS=		-lz -lpthread -lm
 
 WFA_ROOT=WFA2-lib
@@ -24,13 +24,16 @@ endif
 .cpp.o:
 		$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) $(INCLUDES) $< -o $@
 
-all:mwf-test
+all:test-mwf test-wfalm
 
-mwf-test:$(OBJS) main.o
+test-mwf:$(OBJS) main.o
 		$(CC) $(CFLAGS) $^ -o $@ $(LIBS)
 
-wfa-test:main-wfa.c
+test-wfa:main-wfa.c
 		$(CC) -I$(WFA_ROOT) $(CFLAGS) $< -o $@ -L$(WFA_ROOT)/lib -lwfa $(LIBS)
+
+test-wfalm:main-wfalm.cpp
+		$(CXX) $(CXXFLAGS) $< -o $@ $(LIBS)
 
 clean:
 		rm -fr gmon.out *.o a.out $(PROG) *~ *.a *.dSYM
@@ -41,6 +44,8 @@ depend:
 # DO NOT DELETE
 
 kalloc.o: kalloc.h
+main-wfa.o: ketopt.h kseq.h
 main.o: ketopt.h kalloc.h miniwfa.h kseq.h
 miniwfa.o: miniwfa.h kalloc.h
 mwf-dbg.o: miniwfa.h
+main-wfalm.o: lib/wfa_lm.hpp ketopt.h kseq.h
