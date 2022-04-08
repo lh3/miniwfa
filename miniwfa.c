@@ -124,6 +124,7 @@ static void wf_stripe_destroy(void *km, wf_stripe_t *wf)
 	int32_t i;
 	for (i = 0; i < wf->n; ++i)
 		kfree(km, wf->a[i].mem);
+	kfree(km, wf->a);
 	kfree(km, wf);
 }
 
