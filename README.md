@@ -45,10 +45,14 @@ is the maximal penalty between adjacent entries. The time complexity is
 
 We only use two pairs of sequences for evaluation. The first pair consists of
 the two haplotypes of NA19240 around the C4A/C4B gene. They are 100-150kb in
-length with a penalty of 27k. The second pair consists of GRCh38 and
-CHM13 around MHC. They are about 5Mb in length with a penalty of 232kb.
-These sequences can be found [via Zenodo][seq-zenodo]. We compiled the code
-with gcc-10.3.0 (no LTO) on a CentOS 7 server equipped with two Xeon 6130 CPUs.
+length with a penalty of 27k under the minimap2 penalty (*x*=4,
+*o*<sub>1</sub>=4, *e*<sub>1</sub>=2, *o*<sub>2</sub>=24 and
+*e*<sub>2</sub>=1).  The second pair consists of GRCh38 and CHM13 around MHC.
+They are about 5Mb in length with a penalty of 232kb.  These sequences can be
+found [via Zenodo][seq-zenodo].
+
+We checked out WFA2-lib and wfalm on 2022-04-07 and compiled the code with
+gcc-10.3.0 (no LTO) on a CentOS 7 server equipped with two Xeon 6130 CPUs.
 
 |Method             |Path|Command line    |t<sub>MHC</sub> (s)|M<sub>MHC</sub> (GB)|t<sub>C4</sub> (s)|M<sub>C4</sub> (MB)|
 |:------------------|:---|:---------------|------------------:|-------------------:|-----------------:|------------------:|
