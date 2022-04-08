@@ -462,7 +462,7 @@ static void wf_next_seg(void *km, const mwf_opt_t *opt, uint8_t *xbuf, wf_stripe
 	wf_next_tb(lo, hi, H, E1, F1, E2, F2, ax, pHx, pHo1, pHo2, pE1, pF1, pE2, pF2);
 	wf_next_prep(km, opt, sf, lo, hi, &H, &E1, &F1, &E2, &F2, &pHx, &pHo1, &pHo2, &pE1, &pF1, &pE2, &pF2);
 	PRAGMA_LOOP_VECTORIZE
-	for (d = lo; d <= hi; ++d) {
+	for (d = lo; d <= hi; ++d) { // FIXME: merge this loop into the loop in wf_next_tb(). I tried but couldn't make clang vectorize.
 		uint8_t x = ax[d];
 		int32_t a, b, e1, f1, e2, f2, h;
 		a = pHo1[d-1], b = pE1[d-1];
@@ -502,7 +502,6 @@ static wf_chkpt_t *wf_traceback_seg(void *km, wf_sss_t *sss, int32_t last, int32
 		assert(k < p->n_intv);
 		seg[j].max_s = p->max_s - (p->n_intv - k - 1);
 		seg[j].d = (int32_t)(p->intv[k]>>32) + (last - m) / 5;
-		//fprintf(stderr, "last=%d, last-m=%d, d0=%d, k=%d, intv=%d, max_s=%d\n", last, last - m, (int32_t)(p->intv[k]>>32), k, p->n_intv, p->max_s);
 		last = p->x[last];
 	}
 	assert(last == -1);
