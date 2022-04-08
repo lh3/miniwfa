@@ -5,9 +5,10 @@ CXXFLAGS=	$(CFLAGS)
 CPPFLAGS=
 INCLUDES=
 OBJS=		kalloc.o miniwfa.o mwf-dbg.o
-PROG=		mwf-test
+PROG=		mwf-test wfa-test
 LIBS=		-lz -lpthread -lm
-LIBS_WFA2=
+
+WFA_ROOT=WFA2-lib
 
 ifneq ($(asan),)
 	CFLAGS+=-fsanitize=address
@@ -23,10 +24,13 @@ endif
 .cpp.o:
 		$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) $(INCLUDES) $< -o $@
 
-all:$(PROG)
+all:mwf-test
 
-$(PROG):$(OBJS) main.o
-		$(CXX) $(CFLAGS) $^ -o $@ $(LIBS)
+mwf-test:$(OBJS) main.o
+		$(CC) $(CFLAGS) $^ -o $@ $(LIBS)
+
+wfa-test:main-wfa.c
+		$(CC) -I$(WFA_ROOT) $(CFLAGS) $< -o $@ -L$(WFA_ROOT)/lib -lwfa $(LIBS)
 
 clean:
 		rm -fr gmon.out *.o a.out $(PROG) *~ *.a *.dSYM
