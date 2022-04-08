@@ -20,14 +20,13 @@ low-memory mode.
 ## Algorithm
 
 When reporting alignment score only, miniwfa behaves largely the same as the
-original WFA. WFA2-lib is faster in this case, probably due to its better
-engineering.  Miniwfa differs mainly in traceback. In the high memory mode,
-miniwfa packs traceback information into 7 bits:
+original WFA. Miniwfa differs mainly in traceback. In the high memory mode,
+miniwfa packs traceback information into 7 bits per entry:
 ```txt
 extD2<<6 | extI2<<5 | extD1<<4 | extI1<<3 | fromState
 ```
 where `extD1`, for example, indicates whether we are extending the `D1`
-deletion state, and `fromState` keeps the max state (5 distinct values).
+deletion state, and `fromState` keeps the max state (5 possible values).
 As such, miniwfa uses 1 byte for each traceback entry. The standard WFA uses 20
 bytes per entry.
 
@@ -52,16 +51,20 @@ with gcc-10.3.0 (no LTO) on a CentOS 7 server equipped with two Xeon 6130 CPUs.
 
 |Method |Path|CMD             |t<sub>MHC</sub> (s)|M<sub>MHC</sub> (GB)|t<sub>C4</sub> (s)|M<sub>C4</sub> (MB)|Comment|
 |:------|:---|:---------------|------------------:|-------------------:|-----------------:|------------------:|:------|
-|miniwfa|N   |test-mwf        |440   |0.5    |4.8   |33   |Score only|
-|miniwfa|Y   |test-mwf -c     |558   |51.6   |6.7   |736  |High-mem|
-|miniwfa|Y   |test-mwf -cp5000|787   |6.2    |11.2  |266  |Low-mem|
-|wfa2-lib|N  |test-wfa        |333   |0.6    |2.9   |55   |Score only|
-|wfa2-lib|Y  |test-wfa -cm1   |4915  |22.4   |20.6  |888  |Low-mem|
-|wfa2-lib|Y  |test-wfa -cm2   |2460  |34.4   |21.5  |1173 |Med-mem|
+|miniwfa|N   |test-mwf        |448   |0.5    |4.3   |33   |Score only|
+|miniwfa|Y   |test-mwf -c     |566   |51.6   |6.1   |736  |High-mem|
+|miniwfa|Y   |test-mwf -cp5000|807   |6.2    |10.0  |266  |Low-mem|
+|wfa2-lib|N  |test-wfa        |349   |0.6    |2.5   |55   |Score only|
+|wfa2-lib|Y  |test-wfa -cm1   |4915  |22.4   |18.0  |888  |Low-mem|
+|wfa2-lib|Y  |test-wfa -cm2   |2634  |34.4   |18.4  |1173 |Med-mem|
 |wfa2-lib|Y  |test-wfa -cm3   |      |~1000  |8.6   |14332|High-mem|
-|wfalm   |Y  |test-wfalm -m1  |      |       |73.9  |300  |Recursive|
-|wfalm   |Y  |test-wfalm -m2  |2734  |38.1   |30.5  |1241 |Low-mem|
+|wfalm   |Y  |test-wfalm -m1  |      |       |66.3  |300  |Recursive|
+|wfalm   |Y  |test-wfalm -m2  |2734  |38.1   |28.6  |1241 |Low-mem|
 |wfalm   |Y  |test-wfalm -m3  |      |~1000  |15.4  |13883|High-mem|
+
+When only calculating the alignment score, WFA2-lib is the fastest, probably
+due to its better engineering. When reporting the alignment path, miniwfa is
+the fastest and uses the least memory.
 
 [wfa-pub]: https://pubmed.ncbi.nlm.nih.gov/32915952/
 [wfa]: https://github.com/smarco/WFA2-lib
