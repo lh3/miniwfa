@@ -11,7 +11,7 @@
 void mwf_opt_init(mwf_opt_t *opt)
 {
 	memset(opt, 0, sizeof(*opt));
-	opt->x  = 2;
+	opt->x  = 4;
 	opt->o1 = 4, opt->e1 = 2;
 	opt->o2 = 24, opt->e2 = 1;
 }
