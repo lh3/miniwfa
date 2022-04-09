@@ -1,6 +1,6 @@
 CC=			gcc
 CXX=		g++
-CFLAGS=		-g -Wall -O2 -march=native
+CFLAGS=		-g -Wall -O3 -march=native #-fopt-info-vec-optimized
 CXXFLAGS=	$(CFLAGS) -std=c++14
 CPPFLAGS=
 INCLUDES=
