@@ -17,13 +17,6 @@ for megabase-long sequences, miniwfa is sometimes a few times faster and tends
 to use less memory in comparison to [WFA2-lib][wfa] and [wfalm][wfalm] in their
 low-memory mode.
 
-Miniwfa relies on compilers to vectorize three key loops. Old compilers (e.g.
-gcc-4.8.5) that do not support auto vectorization will lead to lower
-performance. Some compilers (e.g. gcc-6.4.0) cannot vectorize one of the loops.
-Clang-13.1.6 and gcc-10.3.0 are known to work well with miniwfa. Also note that
-gcc does not vectorize loops with -O2. If you use miniwfa as a library, please
-enable -O3 when compiling with gcc.
-
 ## Algorithm
 
 When reporting alignment score only, miniwfa behaves largely the same as the
@@ -47,6 +40,16 @@ the optimal alignment penalty, *p* is the distance between stripes and
 *q*=max(*x*,*o*<sub>1</sub>+*e*<sub>1</sub>,*o*<sub>2</sub>+*e*<sub>2</sub>)
 is the maximal penalty between adjacent entries. The time complexity is
 *O*(*n*(*s*+*p*)) where *n* is the length of the longer sequence.
+
+## Vectorization
+
+Miniwfa relies on [compiler vectorization][auto-vec] to parallelize three key
+loops. Old compilers (e.g.  gcc-4.8.5) that do not support auto vectorization
+will lead to lower performance. Some compilers (e.g. gcc-6.4.0) cannot
+vectorize one of the loops.  Clang-13.1.6 and gcc-10.3.0 are known to work well
+with miniwfa. Also note that gcc does not vectorize loops with -O2 and
+vectorization is influenced by SIMD.  If you use miniwfa as a library, it is
+recommended to enable `-msse4 -O3` when compiling with gcc.
 
 ## Evaluation
 
@@ -85,3 +88,4 @@ memory allocation when they adopt the 1-byte-per-entry representation.
 [wfa]: https://github.com/smarco/WFA2-lib
 [wfalm]: https://github.com/jeizenga/wfalm
 [seq-zenodo]: https://zenodo.org/record/6056061
+[auto-vec]: https://en.wikipedia.org/wiki/Automatic_vectorization
