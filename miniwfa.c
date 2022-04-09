@@ -136,7 +136,7 @@ static inline wf_slice_t *wf_stripe_get(wf_stripe_t *wf, int32_t x)
 }
 
 typedef struct {
-	int32_t max_s, d;
+	int32_t s, d;
 } wf_chkpt_t;
 
 /*
@@ -343,7 +343,7 @@ static uint32_t *wf_traceback(void *km, const mwf_opt_t *opt, wf_tb_t *tb, int32
 // pts and pqs MUST BE padded with wf_pad_str()
 static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char *pts, int32_t ql, const char *pqs, int32_t n_seg, wf_chkpt_t *seg, mwf_rst_t *r)
 {
-	int32_t max_pen, sid, is_tb = !!(opt->flag&MWF_F_CIGAR), last_state = 0;
+	int32_t max_pen, sid, is_tb = !!(opt->flag&MWF_F_CIGAR), last_state = 0, stopped = 0;
 	wf_stripe_t *wf;
 	wf_tb_t tb = {0,0,0};
 	void *km_tb;
@@ -373,7 +373,11 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 			H[d] = k;
 		}
 		if (d <= p->hi) break;
-		if (is_tb && seg && sid < n_seg && seg[sid].max_s == wf->s + 1) {
+		if (opt->s_stop > 0 && wf->s + 1 > opt->s_stop) {
+			stopped = 1;
+			break;
+		}
+		if (is_tb && seg && sid < n_seg && seg[sid].s == wf->s) {
 			assert(seg[sid].d >= wf->lo && seg[sid].d <= wf->hi);
 			wf->lo = wf->hi = seg[sid].d;
 			++sid;
@@ -382,13 +386,13 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 		hi = wf->hi <  ql? wf->hi + 1 :  ql;
 		wf_next_basic(km, km_tb, opt, wf, is_tb? &tb : 0, lo, hi);
 	}
-	r->s = wf->s;
+	r->s = stopped? -1 : wf->s;
 	if (km && (opt->flag&MWF_F_DEBUG)) {
 		km_stat_t st;
 		km_stat(km, &st);
 		fprintf(stderr, "tl=%d, ql=%d, cap=%ld, avail=%ld, n_blks=%ld\n", tl, ql, st.capacity, st.available, st.n_blocks);
 	}
-	if (is_tb) {
+	if (is_tb && !stopped) {
 		r->cigar = wf_traceback(km, opt, &tb, tl-1, pts, ql-1, pqs, last_state, &r->n_cigar);
 		km_destroy(km_tb);
 	}
@@ -501,7 +505,7 @@ static wf_chkpt_t *wf_traceback_seg(void *km, wf_sss_t *sss, int32_t last, int32
 			m += (int32_t)p->intv[k];
 		}
 		assert(k < p->n_intv);
-		seg[j].max_s = p->max_s - (p->n_intv - k - 1);
+		seg[j].s = p->max_s - (p->n_intv - k - 1);
 		seg[j].d = (int32_t)(p->intv[k]>>32) + (last - m) / 5;
 		last = p->x[last];
 	}
