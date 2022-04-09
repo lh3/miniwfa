@@ -48,31 +48,31 @@ the two haplotypes of NA19240 around the C4A/C4B gene. They are 100-150kb in
 length with a penalty of 27k under the minimap2 penalty (*x*=4,
 *o*<sub>1</sub>=4, *e*<sub>1</sub>=2, *o*<sub>2</sub>=24 and
 *e*<sub>2</sub>=1).  The second pair consists of GRCh38 and CHM13 around MHC.
-They are about 5Mb in length with a penalty of 232kb.  These sequences can be
+They are about 5Mb in length with a penalty of 232k. These sequences can be
 found [via Zenodo][seq-zenodo].
 
 We checked out WFA2-lib and wfalm on 2022-04-07 and compiled the code with
-gcc-10.3.0 (no LTO) on a CentOS 7 server equipped with two Xeon 6130 CPUs.
+gcc-10.3.0 (no LTO) on a CentOS 7 server equipped with two Xeon 6230 CPUs.
 
 |Method             |Path|Command line    |t<sub>MHC</sub> (s)|M<sub>MHC</sub> (GB)|t<sub>C4</sub> (s)|M<sub>C4</sub> (MB)|
 |:------------------|:---|:---------------|------------------:|-------------------:|-----------------:|------------------:|
-|miniwfa score-only |N   |test-mwf        |448   |0.5    |4.3   |33   |
-|miniwfa high-mem   |Y   |test-mwf -c     |566   |51.6   |6.1   |736  |
-|miniwfa low-mem    |Y   |test-mwf -cp5000|807   |6.2    |10.0  |266  |
-|wfa2-lib score-only|N   |test-wfa        |349   |0.6    |2.5   |55   |
-|wfa2-lib high-mem  |Y   |test-wfa -cm3   |      |~1000  |8.6   |14332|
-|wfa2-lib med-mem   |Y   |test-wfa -cm2   |2634  |34.4   |18.4  |1173 |
-|wfa2-lib low-mem   |Y   |test-wfa -cm1   |3733  |23.6   |18.0  |888  |
-|wfalm high-mem     |Y   |test-wfalm -m3  |      |~1000  |15.4  |13883
-|wfalm low-mem      |Y   |test-wfalm -m2  |2734  |38.1   |28.6  |1241 |
-|wfalm recursive    |Y   |test-wfalm -m1  |7431  |3.1    |66.3  |300  |
+|miniwfa score-only |N   |test-mwf        |414   |0.5    |3.1   |33   |
+|miniwfa high-mem   |Y   |test-mwf -c     |425   |51.6   |3.7   |736  |
+|miniwfa low-mem    |Y   |test-mwf -cp5000|646   |6.2    |6.1   |266  |
+|wfa2-lib score-only|N   |test-wfa        |349   |0.6    |2.3   |55   |
+|wfa2-lib high-mem  |Y   |test-wfa -cm3   |      |~1000  |8.9   |14332|
+|wfa2-lib med-mem   |Y   |test-wfa -cm2   |2396  |34.4   |17.6  |1173 |
+|wfa2-lib low-mem   |Y   |test-wfa -cm1   |3310  |23.6   |18.5  |888  |
+|wfalm high-mem     |Y   |test-wfalm -m3  |      |~1000  |15.2  |13883
+|wfalm low-mem      |Y   |test-wfalm -m2  |2476  |38.1   |25.7  |1241 |
+|wfalm recursive    |Y   |test-wfalm -m1  |6846  |3.1    |56.1  |300  |
 
 When only calculating the alignment score, WFA2-lib is the fastest, probably
 due to its better engineering. When reporting the alignment path, miniwfa is
 the fastest. The recursive algorithm in wfalm uses the least memory but it is
-several times slower. At present, WFA2-lib and wfalm use 20 bytes per traceback
-entry. I expect them to use much less memory when they start to adopt the
-1-byte-per-entry representation.
+an order of magnitude slower. At present, WFA2-lib and wfalm use 20 bytes per
+traceback entry. I expect them to use much less memory and spend less time on
+memory allocation when they adopt the 1-byte-per-entry representation.
 
 [wfa-pub]: https://pubmed.ncbi.nlm.nih.gov/32915952/
 [wfa]: https://github.com/smarco/WFA2-lib
