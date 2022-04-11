@@ -77,7 +77,7 @@ gcc-10.3.0 (no LTO) on a CentOS 7 server equipped with two Xeon 6230 CPUs.
 |wfalm low-mem      |Y   |test-wfalm -m2  |2476  |38.1   |25.7  |1241 |
 |wfalm recursive    |Y   |test-wfalm -m1  |6846  |3.1    |56.1  |300  |
 
-When only calculating the alignment score, WFA2-lib is the fastest, probably
+When only calculating the alignment score, WFA2-lib is the fastest in this evaluation, probably
 due to its better engineering. When reporting the alignment path, miniwfa is
 the fastest. The recursive algorithm in wfalm uses the least memory but it is
 an order of magnitude slower. At present, WFA2-lib and wfalm use 20 bytes per
