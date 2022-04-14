@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
 	ks1 = kseq_init(fp1);
 	ks2 = kseq_init(fp2);
 
-	auto wfa = wfalm::make_convex_wfaligner(4, 3, 3, 1, 15);
+	auto wfa = wfalm::make_convex_wfaligner(4, 2, 3, 1, 15);
 
 	while (kseq_read(ks1) >= 0 && kseq_read(ks2) >= 0) {
 		std::pair<std::vector<wfalm::CIGAROp>, int32_t> rst;
