@@ -84,8 +84,51 @@ an order of magnitude slower. At present, WFA2-lib and wfalm use 20 bytes per
 traceback entry. I expect them to use much less memory and spend less time on
 memory allocation when they adopt the 1-byte-per-entry representation.
 
+## Historical notes on WFA and related algorithms
+
+I got the following notes wrong a few times. Please let me know if you found
+the narrative is still inaccurate.
+
+Given a pair of strings, let *n* be the length of the longer string and *d* is
+their edit distance. Ukkonen first found the *O*(*nd*) algorithm to compute
+edit distances in 1983 and [published it in 1985][U85a]. Myers independently
+published the same algorithm [in 1986][myers86]. He additionally introduced a
+few variations including a linear-space algorithm based on the [Hirschberg's
+algorithm][lin-space]. Sometimes the *O*(*nd*) algorithm is also attributed to
+[Landau and Vishkin (1989)][lv89]. Nonetheless, the two authors were aware of
+Ukkonen's work at the time of publication.
+
+The search for a similar algorithm for linear or affine gap penalties took
+three decades. To the best of my knowledge, [Xin et al (2017)][leap] first
+found a version of this algorithm but apparently they have never published it
+in a peer-reviewed journal. [WFA][wfa-pub] is the first published algorithm. It
+also comes with a highly efficient implementation, beating all global alignment
+algorithms by a large margin.
+
+A major concern with the original WFA is its large memory consumption. [Eizenga
+and Paten (2022)][EP22] implemented wfalm to reduce its peak memory. The
+developer of the original WFA has independently developed an alternative
+and is still exploring even more efficient variations. This repo presents a
+different low-memory algorithm inspired by the previous work.
+
+It is worth noting that also in 1985, Ukkonen published [another
+algorithm][U85b] with expected *O*(*nt*) time complexity where *t* is a given
+threshold. This algorithm guarantees to find the edit distance *d* if
+*d*&le;*t*. It is somewhat similar to banded alignment but distinct from his
+*O*(*nd*) algorithm published in the same year.
+
 [wfa-pub]: https://pubmed.ncbi.nlm.nih.gov/32915952/
 [wfa]: https://github.com/smarco/WFA2-lib
 [wfalm]: https://github.com/jeizenga/wfalm
 [seq-zenodo]: https://zenodo.org/record/6056061
 [auto-vec]: https://en.wikipedia.org/wiki/Automatic_vectorization
+
+[myers86]: https://link.springer.com/article/10.1007/BF01840446
+[U85a]: https://www.sciencedirect.com/science/article/pii/S0019995885800462
+[U85b]: https://www.sciencedirect.com/science/article/abs/pii/0196677485900239
+[edlib]: https://github.com/Martinsos/edlib
+[lin-space]: https://en.wikipedia.org/wiki/Hirschberg%27s_algorithm
+[leap]: https://www.biorxiv.org/content/10.1101/133157v3
+[myers-bit]: https://dl.acm.org/doi/10.1145/316542.316550
+[EP22]: https://www.biorxiv.org/content/10.1101/2022.01.12.476087v1
+[lv89]: https://doi.org/10.1016/0196-6774(89)90010-2
