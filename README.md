@@ -102,9 +102,9 @@ Ukkonen (1985) in their published paper.
 The search for a similar algorithm for linear or affine gap penalties took
 three decades. To the best of my knowledge, [Xin et al (2017)][leap] first
 found a version of this algorithm but apparently they have never published it
-in a peer-reviewed journal. [WFA][wfa-pub] is the first published algorithm. It
-also comes with a highly efficient implementation, beating all global alignment
-algorithms by a large margin.
+in a peer-reviewed journal. [Marco-Sola et al (2021)][wfa-pub] published the
+WFA algorithm as we know today. They also gave a highly efficient
+implementation, beating all global alignment algorithms by a large margin.
 
 A major concern with the original WFA is its large memory consumption. [Eizenga
 and Paten (2022)][EP22] implemented wfalm to reduce its peak memory. The
