@@ -32,9 +32,9 @@ int main(int argc, char *argv[])
 	wavefront_aligner_attr_t attributes = wavefront_aligner_attr_default;
 	attributes.distance_metric = gap_affine_2p;
 	attributes.affine2p_penalties.mismatch = 4;       // X > 0
-	attributes.affine2p_penalties.gap_opening1 = 4;   // O1 >= 0
-	attributes.affine2p_penalties.gap_extension1 = 2; // E1 > 0
-	attributes.affine2p_penalties.gap_opening2 = 24;  // O2 >= 0
+	attributes.affine2p_penalties.gap_opening1 = 3;   // O1 >= 0
+	attributes.affine2p_penalties.gap_extension1 = 3; // E1 > 0
+	attributes.affine2p_penalties.gap_opening2 = 15;  // O2 >= 0
 	attributes.affine2p_penalties.gap_extension2 = 1; // E2 > 0
 	attributes.alignment_scope = cigar? compute_alignment : compute_score;
 	attributes.memory_mode = mem_mode <= 1? wavefront_memory_low : mem_mode == 2? wavefront_memory_med : wavefront_memory_high;
