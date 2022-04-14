@@ -95,8 +95,9 @@ edit distances in 1983 and [published it in 1985][U85a]. Myers independently
 published the same algorithm [in 1986][myers86]. He additionally introduced a
 few variations including a linear-space algorithm based on the [Hirschberg's
 algorithm][lin-space]. Sometimes the *O*(*nd*) algorithm is also attributed to
-[Landau and Vishkin (1989)][lv89]. Nonetheless, the two authors were aware of
-Ukkonen's work at the time of publication.
+[Landau and Vishkin (1989)][lv89]. I don't know if the two authors were aware
+of Ukkonen's work at the time of submission in 1986, but they did cite
+Ukkonen (1985) in their published paper.
 
 The search for a similar algorithm for linear or affine gap penalties took
 three decades. To the best of my knowledge, [Xin et al (2017)][leap] first
