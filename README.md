@@ -12,10 +12,9 @@ cp miniwfa.{c,h} kalloc.{c,h} your_src/
 ## Introduction
 
 Miniwfa is a reimplementation of the WaveFront Alignment algorithm
-([WFA][wfa-pub]) with 2-piece affine gap penalty. When reporting base alignment
-for megabase-long sequences, miniwfa is sometimes a few times faster and tends
-to use less memory in comparison to [WFA2-lib][wfa] and [wfalm][wfalm] in their
-low-memory mode.
+([WFA][wfa-pub]) with 2-piece gap penalty. It was faster than WFA2-lib when
+miniwfa was first developed. Now the linear-space [BiWFA][biwfa] algorithm is
+faster and uses less memory.
 
 ## Algorithm
 
@@ -55,34 +54,27 @@ recommended to enable `-msse4 -O3` when compiling with gcc.
 
 We only use two pairs of sequences for evaluation. The first pair consists of
 the two haplotypes of NA19240 around the C4A/C4B gene. They are 100-150kb in
-length with a penalty of 27k under the minimap2 penalty (*x*=4,
-*o*<sub>1</sub>=4, *e*<sub>1</sub>=2, *o*<sub>2</sub>=24 and
-*e*<sub>2</sub>=1).  The second pair consists of GRCh38 and CHM13 around MHC.
-They are about 5Mb in length with a penalty of 232k. These sequences can be
+length with a penalty of 26,917 under penalty *x*=4,
+*o*<sub>1</sub>=4, *e*<sub>1</sub>=2, *o*<sub>2</sub>=15 and
+*e*<sub>2</sub>=1.  The second pair consists of GRCh38 and CHM13 around MHC.
+They are about 5Mb in length with a penalty of 229,868. These sequences can be
 found [via Zenodo][seq-zenodo].
 
-We checked out WFA2-lib and wfalm on 2022-04-07 and compiled the code with
+We checked out BiWFA on 2022-04-16 and compiled the code with
 gcc-10.3.0 (no LTO) on a CentOS 7 server equipped with two Xeon 6230 CPUs.
+The table below shows the timing and peak memory for miniwfa and BiWFA in its
+linear mode. The table used to include WFA2-lib and wfalm, which were removed
+because BiWFA is a clear winner now.
 
 |Method             |Path|Command line    |t<sub>MHC</sub> (s)|M<sub>MHC</sub> (GB)|t<sub>C4</sub> (s)|M<sub>C4</sub> (MB)|
 |:------------------|:---|:---------------|------------------:|-------------------:|-----------------:|------------------:|
-|miniwfa score-only |N   |test-mwf        |414   |0.5    |3.1   |33   |
-|miniwfa high-mem   |Y   |test-mwf -c     |425   |51.6   |3.7   |736  |
-|miniwfa low-mem    |Y   |test-mwf -cp5000|646   |6.2    |6.1   |266  |
-|wfa2-lib score-only|N   |test-wfa        |349   |0.6    |2.3   |55   |
-|wfa2-lib high-mem  |Y   |test-wfa -cm3   |      |~1000  |8.9   |14332|
-|wfa2-lib med-mem   |Y   |test-wfa -cm2   |2396  |34.4   |17.6  |1173 |
-|wfa2-lib low-mem   |Y   |test-wfa -cm1   |3310  |23.6   |18.5  |888  |
-|wfalm high-mem     |Y   |test-wfalm -m3  |      |~1000  |15.2  |13883
-|wfalm low-mem      |Y   |test-wfalm -m2  |2476  |38.1   |25.7  |1241 |
-|wfalm recursive    |Y   |test-wfalm -m1  |6846  |3.1    |56.1  |300  |
+|miniwfa high-mem   |Y   |test-mwf -c     |385   |50.6   |3.6   |736  |
+|miniwfa low-mem    |Y   |test-mwf -cp5000|554   |4.1    |5.4   |225  |
+|biwfa linear       |Y   |test-wfa -cm0   |417   |0.4    |26.4  |54   |
 
-When only calculating the alignment score, WFA2-lib is the fastest in this evaluation, probably
-due to its better engineering. When reporting the alignment path, miniwfa is
-the fastest. The recursive algorithm in wfalm uses the least memory but it is
-an order of magnitude slower. At present, WFA2-lib and wfalm use 20 bytes per
-traceback entry. I expect them to use much less memory and spend less time on
-memory allocation when they adopt the 1-byte-per-entry representation.
+Miniwfa is faster on the C4 pair possibly because it more efficiently handles
+sequence pairs of very different lengths. It is not hard to implement this
+strategy in BiWFA.
 
 ## Historical notes on WFA and related algorithms
 
@@ -107,10 +99,10 @@ WFA algorithm as we know today. They also gave a highly efficient
 implementation, beating all global alignment algorithms by a large margin.
 
 A major concern with the original WFA is its large memory consumption. [Eizenga
-and Paten (2022)][EP22] implemented wfalm to reduce its peak memory. The
-developer of the original WFA has independently developed an alternative
-and is still exploring even more efficient variations. This repo presents a
-different low-memory algorithm inspired by the previous work.
+and Paten (2022)][EP22] implemented wfalm to reduce its peak memory. This repo
+was inspired by this work. Then [Marco-Sola et al (2022)][biwfa] developed
+BiWFA that finds the alignment in linear space. This is so far the best
+performing algorithm.
 
 It is worth noting that also in 1985, Ukkonen published [another
 algorithm][U85b] with expected *O*(*nt*) time complexity where *t* is a given
@@ -118,8 +110,10 @@ threshold. This algorithm guarantees to find the edit distance *d* if
 *d*&le;*t*. It is somewhat similar to banded alignment but distinct from his
 *O*(*nd*) algorithm published in the same year.
 
+[biwfa-pub]: https://www.biorxiv.org/content/10.1101/2022.04.14.488380v1
 [wfa-pub]: https://pubmed.ncbi.nlm.nih.gov/32915952/
-[wfa]: https://github.com/smarco/WFA2-lib
+[biwfa]: https://github.com/smarco/BiWFA-paper
+[wfa2]: https://github.com/smarco/WFA2-lib
 [wfalm]: https://github.com/jeizenga/wfalm
 [seq-zenodo]: https://zenodo.org/record/6056061
 [auto-vec]: https://en.wikipedia.org/wiki/Automatic_vectorization

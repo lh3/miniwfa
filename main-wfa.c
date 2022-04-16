@@ -14,7 +14,7 @@ int main(int argc, char *argv[])
 	gzFile fp1, fp2;
 	kseq_t *ks1, *ks2;
 	ketopt_t o = KETOPT_INIT;
-	int c, cigar = 0, mem_mode = 2;
+	int c, cigar = 0, mem_mode = 0;
 
 	while ((c = ketopt(&o, argc, argv, 1, "cm:", 0)) >= 0) {
 		if (c == 'c') cigar = 1;
@@ -42,6 +42,7 @@ int main(int argc, char *argv[])
 	attributes.affine2p_penalties.gap_extension2 = 1; // E2 > 0
 	attributes.alignment_scope = cigar? compute_alignment : compute_score;
 #ifdef USE_BIWFA
+	if (cigar == 0) mem_mode = 3; // otherwise BiWFA segfaults
 	if (mem_mode == 0) {
 		cigar = 1;
 		attributes.bidirectional_alignment = true;
