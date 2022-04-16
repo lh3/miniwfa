@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include "ketopt.h"
+#define USE_BIWFA
 #include "wavefront/wavefront_align.h"
 #include "kseq.h"
 KSEQ_INIT(gzFile, gzread)
@@ -20,7 +21,8 @@ int main(int argc, char *argv[])
 		else if (c == 'm') mem_mode = atoi(o.arg);
 	}
 	if (argc - o.ind < 2) {
-		fprintf(stderr, "Usage: wfa-test [-c] [-m 0|1|2|3] <in1.fa> <in2.fa>\n");
+		fprintf(stderr, "Usage: test-wfa [-c] [-m 0|1|2|3] <in1.fa> <in2.fa>\n");
+		fprintf(stderr, "Note: -m0 for linear-space\n");
 		return 1;
 	}
 
@@ -34,14 +36,12 @@ int main(int argc, char *argv[])
 	attributes.heuristic.strategy = wf_heuristic_none;
 	attributes.distance_metric = gap_affine_2p;
 	attributes.affine2p_penalties.mismatch = 4;       // X > 0
-	attributes.affine2p_penalties.gap_opening1 = 3;   // O1 >= 0
+	attributes.affine2p_penalties.gap_opening1 = 4;   // O1 >= 0
 	attributes.affine2p_penalties.gap_extension1 = 2; // E1 > 0
 	attributes.affine2p_penalties.gap_opening2 = 15;  // O2 >= 0
 	attributes.affine2p_penalties.gap_extension2 = 1; // E2 > 0
 	attributes.alignment_scope = cigar? compute_alignment : compute_score;
-#ifdef _NO_BIWFA
-	attributes.memory_mode = mem_mode <= 1? wavefront_memory_low : mem_mode == 2? wavefront_memory_med : wavefront_memory_high;
-#else
+#ifdef USE_BIWFA
 	if (mem_mode == 0) {
 		cigar = 1;
 		attributes.bidirectional_alignment = true;
@@ -49,6 +49,8 @@ int main(int argc, char *argv[])
 	} else {
 		attributes.memory_mode = mem_mode <= 1? wavefront_memory_low : mem_mode == 2? wavefront_memory_med : wavefront_memory_high;
 	}
+#else
+	attributes.memory_mode = mem_mode <= 1? wavefront_memory_low : mem_mode == 2? wavefront_memory_med : wavefront_memory_high;
 #endif
 
 	while (kseq_read(ks1) >= 0 && kseq_read(ks2) >= 0) {

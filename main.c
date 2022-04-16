@@ -18,11 +18,12 @@ int main(int argc, char *argv[])
 	void *km = 0;
 
 	mwf_opt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "cKdep:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "cKdep:a", 0)) >= 0) {
 		if (o.opt == 'K') use_kalloc = !use_kalloc;
 		else if (o.opt == 'c') opt.flag |= MWF_F_CIGAR;
 		else if (o.opt == 'd') opt.flag |= MWF_F_DEBUG;
 		else if (o.opt == 'p') opt.flag |= MWF_F_CIGAR, opt.step = atoi(o.arg);
+		else if (o.opt == 'a') opt.o2 = opt.o1, opt.e2 = opt.e1;
 		else if (o.opt == 'e') opt.x = 1, opt.o1 = opt.o2 = 0, opt.e1 = opt.e2 = 1;
 		else if (1) {
 			fprintf(stderr, "ERROR: unknown option\n");
@@ -30,11 +31,13 @@ int main(int argc, char *argv[])
 		}
 	}
 	if (argc - o.ind < 2) {
-		fprintf(stderr, "Usage: mwf-test [options] <in1.fa> <in2.fa>\n");
+		fprintf(stderr, "Usage: test-mwf [options] <in1.fa> <in2.fa>\n");
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  -c       generate CIGAR\n");
-		fprintf(stderr, "  -K       disable the kalloc allocator\n");
 		fprintf(stderr, "  -p INT   step size (force -c; 0 to disable) [%d]\n", opt.step);
+		fprintf(stderr, "  -a       mimic affine gap\n");
+		fprintf(stderr, "  -e       mimic edit distance\n");
+		fprintf(stderr, "  -K       disable the kalloc allocator\n");
 		return 1;
 	}
 
