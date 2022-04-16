@@ -13,8 +13,10 @@ cp miniwfa.{c,h} kalloc.{c,h} your_src/
 
 Miniwfa is a reimplementation of the WaveFront Alignment algorithm
 ([WFA][wfa-pub]) with 2-piece gap penalty. It was faster than WFA2-lib when
-miniwfa was first developed. Now the linear-space [BiWFA][biwfa] algorithm is
-faster and uses less memory.
+miniwfa was first developed. Now the linear-space [BiWFA][biwfa] algorithm
+consistently uses less memory, though the relative performance between miniwfa
+and BiWFA varies with input sequences. In addition, BiWFA is only directly
+applicable to global alignment.
 
 ## Algorithm
 
@@ -52,13 +54,14 @@ recommended to enable `-msse4 -O3` when compiling with gcc.
 
 ## Evaluation
 
-We only use two pairs of sequences for evaluation. The first pair consists of
+We only use three pairs of sequences for evaluation. The first pair consists of
 the two haplotypes of NA19240 around the C4A/C4B gene. They are 100-150kb in
 length with a penalty of 26,917 under penalty *x*=4,
 *o*<sub>1</sub>=4, *e*<sub>1</sub>=2, *o*<sub>2</sub>=15 and
 *e*<sub>2</sub>=1.  The second pair consists of GRCh38 and CHM13 around MHC.
-They are about 5Mb in length with a penalty of 229,868. These sequences can be
-found [via Zenodo][seq-zenodo].
+They are about 5Mb in length with a penalty of 229,868. The third pair consists
+of the two MHC haplotypes in HG002 with a penalty of 267,637. These sequences
+can be found [via Zenodo][seq-zenodo].
 
 We checked out BiWFA on 2022-04-16 and compiled the code with
 gcc-10.3.0 (no LTO) on a CentOS 7 server equipped with two Xeon 6230 CPUs.
@@ -66,15 +69,11 @@ The table below shows the timing and peak memory for miniwfa and BiWFA in its
 linear mode. The table used to include WFA2-lib and wfalm, which were removed
 because BiWFA is a clear winner now.
 
-|Method             |Path|Command line    |t<sub>MHC</sub> (s)|M<sub>MHC</sub> (GB)|t<sub>C4</sub> (s)|M<sub>C4</sub> (MB)|
-|:------------------|:---|:---------------|------------------:|-------------------:|-----------------:|------------------:|
-|miniwfa high-mem   |Y   |test-mwf -c     |385   |50.6   |3.6   |736  |
-|miniwfa low-mem    |Y   |test-mwf -cp5000|554   |4.1    |5.4   |225  |
-|biwfa linear       |Y   |test-wfa -cm0   |417   |0.4    |26.4  |54   |
-
-Miniwfa is faster on the C4 pair possibly because it more efficiently handles
-sequence pairs of very different lengths. It is not hard to implement this
-strategy in BiWFA.
+|Method             |Command line    |t<sub>MHC</sub> (s)|M<sub>MHC</sub> (GB)|t<sub>HG002</sub>|M<sub>HG002</sub>|t<sub>C4</sub>|M<sub>C4</sub>|
+|:------------------|:---------------|------------------:|-------------------:|----------------:|----------------:|-------------:|-------------:|
+|miniwfa high-mem   |test-mwf -c     |385   |50.6   |533   |68.1  |3.6   |0.73 |
+|miniwfa low-mem    |test-mwf -cp5000|554   |4.1    |746   |5.3   |5.4   |0.22 |
+|biwfa linear       |test-wfa -cm0   |417   |0.4    |2603  |0.4   |26.4  |0.05 |
 
 ## Historical notes on WFA and related algorithms
 
