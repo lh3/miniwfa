@@ -3,11 +3,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <sys/resource.h>
+#include <sys/time.h>
 #include "ketopt.h"
 #define USE_BIWFA
 #include "wavefront/wavefront_align.h"
 #include "kseq.h"
 KSEQ_INIT(gzFile, gzread)
+
+double cputime(void)
+{
+	struct rusage r;
+	getrusage(RUSAGE_SELF, &r);
+	return r.ru_utime.tv_sec + r.ru_stime.tv_sec + 1e-6 * (r.ru_utime.tv_usec + r.ru_stime.tv_usec);
+}
 
 int main(int argc, char *argv[])
 {
@@ -15,6 +24,7 @@ int main(int argc, char *argv[])
 	kseq_t *ks1, *ks2;
 	ketopt_t o = KETOPT_INIT;
 	int c, cigar = 0, mem_mode = 0;
+	double t;
 
 	while ((c = ketopt(&o, argc, argv, 1, "cm:", 0)) >= 0) {
 		if (c == 'c') cigar = 1;
@@ -44,9 +54,9 @@ int main(int argc, char *argv[])
 #ifdef USE_BIWFA
 	if (cigar == 0) mem_mode = 3; // otherwise BiWFA segfaults
 	if (mem_mode == 0) {
+		if (cigar == 0) fprintf(stderr, "WARNING: apply -c in the linear-memory mode\n");
 		cigar = 1;
 		attributes.bidirectional_alignment = true;
-		fprintf(stderr, "WARNING: apply -c in the linear-memory mode\n");
 	} else {
 		attributes.memory_mode = mem_mode <= 1? wavefront_memory_low : mem_mode == 2? wavefront_memory_med : wavefront_memory_high;
 	}
@@ -54,8 +64,9 @@ int main(int argc, char *argv[])
 	attributes.memory_mode = mem_mode <= 1? wavefront_memory_low : mem_mode == 2? wavefront_memory_med : wavefront_memory_high;
 #endif
 
+	t = cputime();
+	wavefront_aligner_t* const wf_aligner = wavefront_aligner_new(&attributes);
 	while (kseq_read(ks1) >= 0 && kseq_read(ks2) >= 0) {
-		wavefront_aligner_t* const wf_aligner = wavefront_aligner_new(&attributes);
 		wavefront_align(wf_aligner, ks2->seq.s, ks2->seq.l, ks1->seq.s, ks1->seq.l);
 		printf("%s\t%ld\t0\t%ld\t+\t%s\t%ld\t0\t%ld\t%d", ks1->name.s, ks1->seq.l, ks1->seq.l, ks2->name.s, ks2->seq.l, ks2->seq.l, -wf_aligner->cigar.score);
 		if (cigar) {
@@ -63,7 +74,10 @@ int main(int argc, char *argv[])
 			cigar_print(stdout, &wf_aligner->cigar, 1);
 		}
 		putchar('\n');
+		fprintf(stderr, "T\t%s\t%s\t%.3f\n", ks1->name.s, ks2->name.s, cputime() - t);
+		t = cputime();
 	}
+	wavefront_aligner_delete(wf_aligner);
 
 	kseq_destroy(ks1);
 	kseq_destroy(ks2);

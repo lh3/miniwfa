@@ -2,11 +2,20 @@
 #include <zlib.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/resource.h>
+#include <sys/time.h>
 #include "ketopt.h"
 #include "kalloc.h"
 #include "miniwfa.h"
 #include "kseq.h"
 KSEQ_INIT(gzFile, gzread)
+
+double cputime(void)
+{
+	struct rusage r;
+	getrusage(RUSAGE_SELF, &r);
+	return r.ru_utime.tv_sec + r.ru_stime.tv_sec + 1e-6 * (r.ru_utime.tv_usec + r.ru_stime.tv_usec);
+}
 
 int main(int argc, char *argv[])
 {
@@ -15,6 +24,7 @@ int main(int argc, char *argv[])
 	ketopt_t o = KETOPT_INIT;
 	mwf_opt_t opt;
 	int c, use_kalloc = 1;
+	double t;
 	void *km = 0;
 
 	mwf_opt_init(&opt);
@@ -47,9 +57,10 @@ int main(int argc, char *argv[])
 	ks1 = kseq_init(fp1);
 	ks2 = kseq_init(fp2);
 
-	km = use_kalloc? km_init() : 0;
+	t = cputime();
 	while (kseq_read(ks1) >= 0 && kseq_read(ks2) >= 0) {
 		mwf_rst_t rst;
+		km = use_kalloc? km_init() : 0;
 		mwf_wfa(km, &opt, ks1->seq.l, ks1->seq.s, ks2->seq.l, ks2->seq.s, &rst);
 		if (opt.flag & MWF_F_CIGAR) mwf_assert_cigar(&opt, rst.n_cigar, rst.cigar, ks1->seq.l, ks2->seq.l, rst.s);
 		printf("%s\t%ld\t0\t%ld\t+\t%s\t%ld\t0\t%ld\t%d", ks1->name.s, ks1->seq.l, ks1->seq.l, ks2->name.s, ks2->seq.l, ks2->seq.l, rst.s);
@@ -61,8 +72,10 @@ int main(int argc, char *argv[])
 		}
 		putchar('\n');
 		kfree(km, rst.cigar);
+		if (use_kalloc) km_destroy(km);
+		fprintf(stderr, "T\t%s\t%s\t%.3f\n", ks1->name.s, ks2->name.s, cputime() - t);
+		t = cputime();
 	}
-	if (use_kalloc) km_destroy(km);
 
 	kseq_destroy(ks1);
 	kseq_destroy(ks2);
