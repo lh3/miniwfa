@@ -8,7 +8,7 @@ OBJS=		kalloc.o miniwfa.o mwf-dbg.o
 PROG=		test-mwf test-wfa test-wfalm
 LIBS=		-lz -lpthread -lm
 
-WFA_ROOT=WFA2-lib
+WFA_ROOT=BiWFA-paper
 
 ifneq ($(asan),)
 	CFLAGS+=-fsanitize=address
@@ -30,7 +30,7 @@ test-mwf:$(OBJS) main.o
 		$(CC) $(CFLAGS) $^ -o $@ $(LIBS)
 
 test-wfa:main-wfa.c
-		$(CC) -I$(WFA_ROOT) $(CFLAGS) $< -o $@ -L$(WFA_ROOT)/lib -lwfa $(LIBS)
+		$(CC) -fopenmp -I$(WFA_ROOT) $(CFLAGS) $< -o $@ -L$(WFA_ROOT)/lib -lwfa $(LIBS)
 
 test-wfalm:main-wfalm.cpp
 		$(CXX) $(CXXFLAGS) $< -o $@ $(LIBS)
