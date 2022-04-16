@@ -56,7 +56,11 @@ int main(int argc, char *argv[])
 	while (kseq_read(ks1) >= 0 && kseq_read(ks2) >= 0) {
 		wavefront_aligner_t* const wf_aligner = wavefront_aligner_new(&attributes);
 		wavefront_align(wf_aligner, ks2->seq.s, ks2->seq.l, ks1->seq.s, ks1->seq.l);
-		printf("%s\t%ld\t0\t%ld\t+\t%s\t%ld\t0\t%ld\t%d", ks1->name.s, ks1->seq.l, ks1->seq.l, ks2->name.s, ks2->seq.l, ks2->seq.l, wf_aligner->align_status.score);
+		printf("%s\t%ld\t0\t%ld\t+\t%s\t%ld\t0\t%ld\t%d", ks1->name.s, ks1->seq.l, ks1->seq.l, ks2->name.s, ks2->seq.l, ks2->seq.l, -wf_aligner->cigar.score);
+		if (cigar) {
+			putchar('\t');
+			cigar_print(stdout, &wf_aligner->cigar, 1);
+		}
 		putchar('\n');
 	}
 
