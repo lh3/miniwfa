@@ -15,8 +15,7 @@ Miniwfa is a reimplementation of the WaveFront Alignment algorithm
 ([WFA][wfa-pub]) with 2-piece gap penalty. It was faster than WFA2-lib when
 miniwfa was first developed. Now the linear-space [BiWFA][biwfa] algorithm
 consistently uses less memory, though the relative performance between miniwfa
-and BiWFA varies with input sequences. In addition, BiWFA is only directly
-applicable to global alignment.
+and BiWFA varies with input sequences.
 
 ## Algorithm
 
