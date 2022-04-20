@@ -624,28 +624,28 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 	return seg;
 }
 
-void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
+static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char *pts, int32_t ql, const char *pqs, mwf_rst_t *r)
 {
 	int32_t n_seg = 0;
 	wf_chkpt_t *seg = 0;
-	char *pts, *pqs;
-
-	wf_pad_str(km, tl, ts, ql, qs, &pts, &pqs);
 	if (opt->step > 0)
 		seg = mwf_wfa_seg(km, opt, tl, pts, ql, pqs, &n_seg);
 	mwf_wfa_basic(km, opt, tl, pts, ql, pqs, n_seg, seg, r);
-	kfree(km, pts);
 }
 
 void mwf_wfa(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
 {
+	char *pts, *pqs;
+
+	wf_pad_str(km, tl, ts, ql, qs, &pts, &pqs);
 	if (!(opt->flag&MWF_F_DBL) || opt->s_term <= 0) {
-		mwf_wfa_core(km, opt, tl, ts, ql, qs, r);
+		mwf_wfa_core(km, opt, tl, pts, ql, pqs, r);
 	} else {
 		mwf_opt_t o = *opt;
 		do {
-			mwf_wfa_core(km, &o, tl, ts, ql, qs, r);
+			mwf_wfa_core(km, &o, tl, pts, ql, pqs, r);
 			o.s_term <<= 1;
 		} while (r->s < 0);
 	}
+	kfree(km, pts);
 }
