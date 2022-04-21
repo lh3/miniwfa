@@ -30,14 +30,13 @@
 #include <stdint.h>
 
 #define MWF_F_CIGAR    0x1
-#define MWF_F_DBL      0x2
 #define MWF_F_DEBUG    0x100
 
 typedef struct {
 	int32_t flag;
 	int32_t x, o1, e1, o2, e2;
 	int32_t step;
-	int32_t s_term;
+	int32_t s_stop;
 } mwf_opt_t;
 
 typedef struct {

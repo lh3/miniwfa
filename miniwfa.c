@@ -375,9 +375,9 @@ static uint32_t *wf_traceback(void *km, const mwf_opt_t *opt, wf_tb_t *tb, int32
 }
 
 // pts and pqs MUST BE padded with wf_pad_str()
-static void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *pts, int32_t ql, const char *pqs, int32_t n_seg, wf_chkpt_t *seg, mwf_rst_t *r)
+static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char *pts, int32_t ql, const char *pqs, int32_t n_seg, wf_chkpt_t *seg, mwf_rst_t *r)
 {
-	int32_t max_pen, sid, is_tb = !!(opt->flag&MWF_F_CIGAR), last_state = 0, stopped = 0, emin, bw;
+	int32_t max_pen, sid, is_tb = !!(opt->flag&MWF_F_CIGAR), last_state = 0, stopped = 0;
 	wf_stripe_t *wf;
 	wf_tb_t tb = {0,0,0};
 	void *km_tb;
@@ -387,8 +387,6 @@ static void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char
 	max_pen = opt->x;
 	max_pen = max_pen > opt->o1 + opt->e1? max_pen : opt->o1 + opt->e1;
 	max_pen = max_pen > opt->o2 + opt->e2? max_pen : opt->o2 + opt->e2;
-	emin = opt->e1 < opt->e2? opt->e1 : opt->e2;
-	bw = opt->s_term > 0? (opt->s_term + emin - 1) / emin : tl > ql? tl + 1 : ql + 1;
 	wf = wf_stripe_init(km, max_pen);
 	assert(pts);
 
@@ -409,7 +407,7 @@ static void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char
 			H[d] = k;
 		}
 		if (d <= p->hi) break;
-		if (opt->s_term > 0 && wf->s + 1 > opt->s_term) {
+		if (opt->s_stop > 0 && wf->s + 1 > opt->s_stop) {
 			stopped = 1;
 			break;
 		}
@@ -420,8 +418,6 @@ static void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char
 		}
 		lo = wf->lo > -tl? wf->lo - 1 : -tl;
 		hi = wf->hi <  ql? wf->hi + 1 :  ql;
-		lo = lo > -bw? lo : -bw;
-		hi = hi <  bw? hi :  bw;
 		wf_next_basic(km, km_tb, opt, wf, is_tb? &tb : 0, lo, hi);
 		if ((wf->s&0xff) == 0) wf_stripe_shrink(wf, tl, ql);
 	}
@@ -554,17 +550,15 @@ static wf_chkpt_t *wf_traceback_seg(void *km, wf_sss_t *sss, int32_t last, int32
 
 wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *pts, int32_t ql, const char *pqs, int32_t *n_seg_)
 {
-	int32_t max_pen, last, n_seg = 0, stopped = 0, emin, bw;
+	int32_t max_pen, last, n_seg;
 	wf_stripe_t *wf, *sf;
 	wf_sss_t sss = {0,0,0};
 	uint8_t *xbuf;
-	wf_chkpt_t *seg = 0;
+	wf_chkpt_t *seg, *tmp;
 
 	max_pen = opt->x;
 	max_pen = max_pen > opt->o1 + opt->e1? max_pen : opt->o1 + opt->e1;
 	max_pen = max_pen > opt->o2 + opt->e2? max_pen : opt->o2 + opt->e2;
-	emin = opt->e1 < opt->e2? opt->e1 : opt->e2;
-	bw = opt->s_term > 0? (opt->s_term + emin - 1) / emin : tl > ql? tl + 1 : ql + 1;
 	xbuf = Kcalloc(km, uint8_t, tl + ql + 1);
 	wf = wf_stripe_init(km, max_pen);
 	sf = wf_stripe_init(km, max_pen);
@@ -584,21 +578,14 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 			H[d] = k;
 		}
 		if (d <= p->hi) break;
-		if (opt->s_term > 0 && wf->s + 1 > opt->s_term) {
-			stopped = 1;
-			break;
-		}
 		lo = wf->lo > -tl? wf->lo - 1 : -tl;
 		hi = wf->hi <  ql? wf->hi + 1 :  ql;
-		lo = lo > -bw? lo : -bw;
-		hi = hi <  bw? hi :  bw;
 		if ((wf->s + 1) % opt->step == 0)
 			wf_snapshot(km, &sss, sf);
 		wf_next_seg(km, opt, xbuf, wf, sf, lo, hi);
 		if ((wf->s&0xff) == 0) wf_stripe_shrink(wf, tl, ql);
 	}
-	if (!stopped)
-		seg = wf_traceback_seg(km, &sss, last, &n_seg);
+	seg = wf_traceback_seg(km, &sss, last, &n_seg);
 	if (km && (opt->flag&MWF_F_DEBUG)) {
 		km_stat_t st;
 		km_stat(km, &st);
@@ -609,38 +596,23 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 	wf_stripe_destroy(km, sf);
 	kfree(km, xbuf);
 
-	if (!stopped) {
-		wf_chkpt_t *tmp = seg;
-		seg = Kmalloc(km, wf_chkpt_t, n_seg); // this is to reduce memory fragmentation
-		memcpy(seg, tmp, n_seg * sizeof(*seg));
-		kfree(km, tmp);
-	}
+	tmp = seg;
+	seg = Kmalloc(km, wf_chkpt_t, n_seg); // this is to reduce memory fragmentation
+	memcpy(seg, tmp, n_seg * sizeof(*seg));
+	kfree(km, tmp);
 	*n_seg_ = n_seg;
 	return seg;
 }
 
-static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char *pts, int32_t ql, const char *pqs, mwf_rst_t *r)
+void mwf_wfa(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
 {
 	int32_t n_seg = 0;
 	wf_chkpt_t *seg = 0;
-	if (opt->step > 0)
-		seg = mwf_wfa_seg(km, opt, tl, pts, ql, pqs, &n_seg);
-	mwf_wfa_basic(km, opt, tl, pts, ql, pqs, n_seg, seg, r);
-}
-
-void mwf_wfa(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
-{
 	char *pts, *pqs;
 
 	wf_pad_str(km, tl, ts, ql, qs, &pts, &pqs);
-	if (!(opt->flag&MWF_F_DBL) || opt->s_term <= 0) {
-		mwf_wfa_core(km, opt, tl, pts, ql, pqs, r);
-	} else {
-		mwf_opt_t o = *opt;
-		do {
-			mwf_wfa_core(km, &o, tl, pts, ql, pqs, r);
-			o.s_term <<= 1;
-		} while (r->s < 0);
-	}
+	if (opt->step > 0)
+		seg = mwf_wfa_seg(km, opt, tl, pts, ql, pqs, &n_seg);
+	mwf_wfa_core(km, opt, tl, pts, ql, pqs, n_seg, seg, r);
 	kfree(km, pts);
 }
