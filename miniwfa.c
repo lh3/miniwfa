@@ -374,17 +374,10 @@ static uint32_t *wf_traceback(void *km, const mwf_opt_t *opt, wf_tb_t *tb, int32
 	return cigar.cigar;
 }
 
-static int32_t wf_cal_bw(const mwf_opt_t *opt, int32_t tl, int32_t ql)
-{
-	int32_t min_e = opt->e1 < opt->e2? opt->e1 : opt->e2;
-	if (opt->s_term <= 0) return tl > ql? tl + 1 : ql + 1;
-	return (opt->s_term + min_e - 1) / min_e;
-}
-
 // pts and pqs MUST BE padded with wf_pad_str()
 static void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char *pts, int32_t ql, const char *pqs, int32_t n_seg, wf_chkpt_t *seg, mwf_rst_t *r)
 {
-	int32_t max_pen, sid, is_tb = !!(opt->flag&MWF_F_CIGAR), last_state = 0, stopped = 0, bw;
+	int32_t max_pen, sid, is_tb = !!(opt->flag&MWF_F_CIGAR), last_state = 0, stopped = 0, emin, bw;
 	wf_stripe_t *wf;
 	wf_tb_t tb = {0,0,0};
 	void *km_tb;
@@ -394,7 +387,8 @@ static void mwf_wfa_basic(void *km, const mwf_opt_t *opt, int32_t tl, const char
 	max_pen = opt->x;
 	max_pen = max_pen > opt->o1 + opt->e1? max_pen : opt->o1 + opt->e1;
 	max_pen = max_pen > opt->o2 + opt->e2? max_pen : opt->o2 + opt->e2;
-	bw = wf_cal_bw(opt, tl, ql);
+	emin = opt->e1 < opt->e2? opt->e1 : opt->e2;
+	bw = opt->s_term > 0? (opt->s_term + emin - 1) / emin : tl > ql? tl + 1 : ql + 1;
 	wf = wf_stripe_init(km, max_pen);
 	assert(pts);
 
@@ -560,7 +554,7 @@ static wf_chkpt_t *wf_traceback_seg(void *km, wf_sss_t *sss, int32_t last, int32
 
 wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *pts, int32_t ql, const char *pqs, int32_t *n_seg_)
 {
-	int32_t max_pen, last, n_seg = 0, stopped = 0, bw;
+	int32_t max_pen, last, n_seg = 0, stopped = 0, emin, bw;
 	wf_stripe_t *wf, *sf;
 	wf_sss_t sss = {0,0,0};
 	uint8_t *xbuf;
@@ -569,7 +563,8 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 	max_pen = opt->x;
 	max_pen = max_pen > opt->o1 + opt->e1? max_pen : opt->o1 + opt->e1;
 	max_pen = max_pen > opt->o2 + opt->e2? max_pen : opt->o2 + opt->e2;
-	bw = wf_cal_bw(opt, tl, ql);
+	emin = opt->e1 < opt->e2? opt->e1 : opt->e2;
+	bw = opt->s_term > 0? (opt->s_term + emin - 1) / emin : tl > ql? tl + 1 : ql + 1;
 	xbuf = Kcalloc(km, uint8_t, tl + ql + 1);
 	wf = wf_stripe_init(km, max_pen);
 	sf = wf_stripe_init(km, max_pen);
