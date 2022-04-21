@@ -28,12 +28,11 @@ int main(int argc, char *argv[])
 	void *km = 0;
 
 	mwf_opt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "cKdep:at:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "cKdep:a", 0)) >= 0) {
 		if (o.opt == 'K') use_kalloc = !use_kalloc;
 		else if (o.opt == 'c') opt.flag |= MWF_F_CIGAR;
 		else if (o.opt == 'd') opt.flag |= MWF_F_DEBUG;
 		else if (o.opt == 'p') opt.flag |= MWF_F_CIGAR, opt.step = atoi(o.arg);
-		else if (o.opt == 't') opt.flag |= MWF_F_DBL, opt.s_term = atoi(o.arg);
 		else if (o.opt == 'a') opt.o2 = opt.o1, opt.e2 = opt.e1;
 		else if (o.opt == 'e') opt.x = 1, opt.o1 = opt.o2 = 0, opt.e1 = opt.e2 = 1;
 		else if (1) {
