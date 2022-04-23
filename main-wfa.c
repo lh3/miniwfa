@@ -23,15 +23,16 @@ int main(int argc, char *argv[])
 	gzFile fp1, fp2;
 	kseq_t *ks1, *ks2;
 	ketopt_t o = KETOPT_INIT;
-	int c, cigar = 0, mem_mode = 0;
+	int c, cigar = 0, mem_mode = 0, affine = 0;
 	double t;
 
-	while ((c = ketopt(&o, argc, argv, 1, "cm:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "acm:", 0)) >= 0) {
 		if (c == 'c') cigar = 1;
 		else if (c == 'm') mem_mode = atoi(o.arg);
+		else if (c == 'a') affine = 1;
 	}
 	if (argc - o.ind < 2) {
-		fprintf(stderr, "Usage: test-wfa [-c] [-m 0|1|2|3] <in1.fa> <in2.fa>\n");
+		fprintf(stderr, "Usage: test-wfa [-a] [-c] [-m 0|1|2|3] <in1.fa> <in2.fa>\n");
 		fprintf(stderr, "Note: -m0 for linear-space\n");
 		return 1;
 	}
@@ -44,13 +45,20 @@ int main(int argc, char *argv[])
 
 	wavefront_aligner_attr_t attributes = wavefront_aligner_attr_default;
 	attributes.heuristic.strategy = wf_heuristic_none;
-	attributes.distance_metric = gap_affine_2p;
-	attributes.affine2p_penalties.mismatch = 4;       // X > 0
-	attributes.affine2p_penalties.gap_opening1 = 4;   // O1 >= 0
-	attributes.affine2p_penalties.gap_extension1 = 2; // E1 > 0
-	attributes.affine2p_penalties.gap_opening2 = 15;  // O2 >= 0
-	attributes.affine2p_penalties.gap_extension2 = 1; // E2 > 0
 	attributes.alignment_scope = cigar? compute_alignment : compute_score;
+	if (affine) {
+		attributes.distance_metric = gap_affine;
+		attributes.affine_penalties.mismatch = 4;       // X > 0
+		attributes.affine_penalties.gap_opening = 4;   // O1 >= 0
+		attributes.affine_penalties.gap_extension = 2; // E1 > 0
+	} else {
+		attributes.distance_metric = gap_affine_2p;
+		attributes.affine2p_penalties.mismatch = 4;       // X > 0
+		attributes.affine2p_penalties.gap_opening1 = 4;   // O1 >= 0
+		attributes.affine2p_penalties.gap_extension1 = 2; // E1 > 0
+		attributes.affine2p_penalties.gap_opening2 = 15;  // O2 >= 0
+		attributes.affine2p_penalties.gap_extension2 = 1; // E2 > 0
+	}
 #ifdef USE_BIWFA
 	if (cigar == 0) mem_mode = 3; // otherwise BiWFA segfaults
 	if (mem_mode == 0) {
