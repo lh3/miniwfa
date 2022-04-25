@@ -6,7 +6,7 @@
 #include <sys/resource.h>
 #include <sys/time.h>
 #include "ketopt.h"
-#define USE_BIWFA
+//#define USE_BIWFA
 #include "wavefront/wavefront_align.h"
 #include "kseq.h"
 KSEQ_INIT(gzFile, gzread)
@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 		attributes.memory_mode = mem_mode <= 1? wavefront_memory_low : mem_mode == 2? wavefront_memory_med : wavefront_memory_high;
 	}
 #else
-	attributes.memory_mode = mem_mode <= 1? wavefront_memory_low : mem_mode == 2? wavefront_memory_med : wavefront_memory_high;
+	attributes.memory_mode = mem_mode == 0? wavefront_memory_ultralow : mem_mode == 1? wavefront_memory_low : mem_mode == 2? wavefront_memory_med : wavefront_memory_high;
 #endif
 
 	t = cputime();

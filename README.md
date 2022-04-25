@@ -62,17 +62,17 @@ They are about 5Mb in length with a penalty of 229,868. The third pair consists
 of the two MHC haplotypes in HG002 with a penalty of 267,637. These sequences
 can be found [via Zenodo][seq-zenodo].
 
-We checked out BiWFA on 2022-04-16 and compiled the code with
+We checked out the development branch of WFA2-lib on 2022-04-25 and compiled the code with
 gcc-10.3.0 (no LTO) on a CentOS 7 server equipped with two Xeon 6230 CPUs.
 The table below shows the timing and peak memory for miniwfa and BiWFA in its
-linear mode. The table used to include WFA2-lib and wfalm, which were removed
+linear mode. The table used to include other memory modes of WFA2-lib and wfalm, which were removed
 because BiWFA is a clear winner now.
 
 |Method             |Command line    |t<sub>MHC</sub> (s)|M<sub>MHC</sub> (GB)|t<sub>HG002</sub>|M<sub>HG002</sub>|t<sub>C4</sub>|M<sub>C4</sub>|
 |:------------------|:---------------|------------------:|-------------------:|----------------:|----------------:|-------------:|-------------:|
-|miniwfa high-mem   |test-mwf -c     |385   |50.6   |533   |68.1  |3.6   |0.73 |
-|miniwfa low-mem    |test-mwf -cp5000|554   |4.1    |746   |5.3   |5.4   |0.22 |
-|biwfa linear       |test-wfa -cm0   |417   |0.4    |2603  |0.4   |26.4  |0.05 |
+|miniwfa high-mem   |test-mwf -c     |385   |50.6   |533   |68.1  |3.8   |0.73 |
+|miniwfa low-mem    |test-mwf -cp5000|544   |4.1    |735   |5.3   |5.8   |0.22 |
+|biwfa linear       |test-wfa -cm0   |308   |0.4    |837   |0.4   |2.0   |0.05 |
 
 ## Historical notes on WFA and related algorithms
 
