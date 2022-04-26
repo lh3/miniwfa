@@ -71,7 +71,7 @@ typedef struct {
 } wf_slice_t;
 
 typedef struct {
-	int32_t s, top, n, max_pen, lo, hi;
+	int32_t s, top, n, max_pen;
 	wf_slice_t *a;
 } wf_stripe_t;
 
@@ -107,7 +107,6 @@ static wf_stripe_t *wf_stripe_init(void *km, int32_t max_pen)
 	wf->max_pen = max_pen;
 	wf->n = max_pen + 1;
 	wf->a = Kcalloc(km, wf_slice_t, wf->n);
-	wf->lo = wf->hi = 0;
 	for (i = 0; i < wf->n; ++i) {
 		wf_slice_t *f;
 		wf_stripe_add(km, wf, 0, 0);
@@ -318,12 +317,16 @@ static void wf_next_basic(void *km, void *km_tb, const mwf_opt_t *opt, int32_t t
 {
 	int32_t lo, hi, *H, *E1, *E2, *F1, *F2;
 	const int32_t *pHx, *pHo1, *pHo2, *pE1, *pE2, *pF1, *pF2;
-	wf_next_intv(opt, wf, tl, ql, &lo, &hi);
 	if (d_pinned != INT32_MAX) {
-		fprintf(stderr, "%d: [%d,%d]\n", d_pinned, lo, hi);
-		assert(d_pinned >= lo && d_pinned <= hi);
+		int32_t i;
+		for (i = 0; i < wf->n; ++i) {
+			wf_slice_t *p = &wf->a[(i + wf->top) % wf->n];
+			p->lo1 = p->hi1 = d_pinned;
+		}
 		lo = d_pinned > -tl? d_pinned - 1 : -tl;
 		hi = d_pinned <  ql? d_pinned + 1 :  ql;
+	} else {
+		wf_next_intv(opt, wf, tl, ql, &lo, &hi);
 	}
 	wf_next_prep(km, opt, wf, lo, hi, &H, &E1, &F1, &E2, &F2, &pHx, &pHo1, &pHo2, &pE1, &pF1, &pE2, &pF2);
 	if (tb) {
@@ -334,8 +337,6 @@ static void wf_next_basic(void *km, void *km_tb, const mwf_opt_t *opt, int32_t t
 		wf_next_score(lo, hi, H, E1, F1, E2, F2, pHx, pHo1, pHo2, pE1, pF1, pE2, pF2);
 	}
 	wf_next_real_bound(&wf->a[wf->top], tl, ql);
-	if (H[lo] >= -1 || E1[lo] >= -1 || F1[lo] >= -1 || E2[lo] >= -1 || F2[lo] >= -1) wf->lo = lo;
-	if (H[hi] >= -1 || E1[hi] >= -1 || F1[hi] >= -1 || E2[hi] >= -1 || F2[hi] >= -1) wf->hi = hi;
 }
 
 static uint32_t *wf_traceback(void *km, const mwf_opt_t *opt, wf_tb_t *tb, int32_t t_end, const char *ts, int32_t q_end, const char *qs, int32_t last, int32_t *n_cigar)
@@ -533,8 +534,6 @@ static void wf_next_seg(void *km, const mwf_opt_t *opt, int32_t tl, int32_t ql, 
 		H[d] = h;
 	}
 	wf_next_real_bound(&wf->a[wf->top], tl, ql);
-	if (H[lo] >= -1 || E1[lo] >= -1 || F1[lo] >= -1 || E2[lo] >= -1 || F2[lo] >= -1) wf->lo = lo;
-	if (H[hi] >= -1 || E1[hi] >= -1 || F1[hi] >= -1 || E2[hi] >= -1 || F2[hi] >= -1) wf->hi = hi;
 }
 
 static wf_chkpt_t *wf_traceback_seg(void *km, wf_sss_t *sss, int32_t last, int32_t *n_seg)
