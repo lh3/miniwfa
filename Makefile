@@ -24,7 +24,7 @@ endif
 .cpp.o:
 		$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) $(INCLUDES) $< -o $@
 
-all:test-mwf test-wfalm
+all:test-mwf
 
 test-mwf:$(OBJS) main.o
 		$(CC) $(CFLAGS) $^ -o $@ $(LIBS)

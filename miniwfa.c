@@ -239,6 +239,27 @@ static inline int32_t wf_extend1_padded(const char *ts, const char *qs, int32_t 
 
 #define wf_max(a, b) ((a) >= (b)? (a) : (b))
 
+static void wf_next_intv(const mwf_opt_t *opt, wf_stripe_t *wf, int32_t tl, int32_t ql, int32_t *lo, int32_t *hi)
+{
+	/*
+	int32_t l, h;
+	const wf_slice_t *fx, *fo1, *fo2, *fe1, *fe2;
+	fx  = wf_stripe_get(wf, opt->x);
+	fo1 = wf_stripe_get(wf, opt->o1 + opt->e1);
+	fo2 = wf_stripe_get(wf, opt->o2 + opt->e2);
+	fe1 = wf_stripe_get(wf, opt->e1);
+	fe2 = wf_stripe_get(wf, opt->e2);
+	l = fo1->lo < fo2->lo? fo1->lo : fo2->lo; l = l < fe1->lo? l : fe1->lo; l = l < fe2->lo? l : fe2->lo; l = l < fx->lo? l : fx->lo;
+	h = fo1->hi > fo2->hi? fo1->hi : fo2->hi; h = h > fe1->hi? h : fe1->hi; h = h > fe2->hi? h : fe2->hi; h = h > fx->hi? h : fx->hi;
+	--l, ++h;
+	if (l < -tl) l = -tl;
+	if (h >  ql) h =  ql;
+	*lo = l, *hi = h;
+	*/
+	*lo = wf->lo > -tl? wf->lo - 1 : -tl;
+	*hi = wf->hi <  ql? wf->hi + 1 :  ql;
+}
+
 static void wf_next_prep(void *km, const mwf_opt_t *opt, wf_stripe_t *wf, int32_t lo, int32_t hi,
 						 int32_t **H, int32_t **E1, int32_t **F1, int32_t **E2, int32_t **F2,
 						 const int32_t **pHx, const int32_t **pHo1, const int32_t **pHo2,
@@ -308,10 +329,11 @@ static void wf_next_tb(int32_t lo, int32_t hi, int32_t *H, int32_t *E1, int32_t 
 /*
  * Core algorithm
  */
-static void wf_next_basic(void *km, void *km_tb, const mwf_opt_t *opt, wf_stripe_t *wf, wf_tb_t *tb, int32_t lo, int32_t hi)
+static void wf_next_basic(void *km, void *km_tb, const mwf_opt_t *opt, int32_t tl, int32_t ql, wf_stripe_t *wf, wf_tb_t *tb)
 {
-	int32_t *H, *E1, *E2, *F1, *F2;
+	int32_t lo, hi, *H, *E1, *E2, *F1, *F2;
 	const int32_t *pHx, *pHo1, *pHo2, *pE1, *pE2, *pF1, *pF2;
+	wf_next_intv(opt, wf, tl, ql, &lo, &hi);
 	wf_next_prep(km, opt, wf, lo, hi, &H, &E1, &F1, &E2, &F2, &pHx, &pHo1, &pHo2, &pE1, &pF1, &pE2, &pF2);
 	if (tb) {
 		uint8_t *ax;
@@ -393,7 +415,7 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 	sid = 0;
 	while (1) {
 		wf_slice_t *p = &wf->a[wf->top];
-		int32_t d, lo, hi, *H = p->H;
+		int32_t d, *H = p->H;
 		for (d = p->lo; d <= p->hi; ++d) {
 			int32_t k = 0;
 			if (H[d] < -1 || d + H[d] < -1 || H[d] >= tl || d + H[d] >= ql) continue;
@@ -416,9 +438,7 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 			wf->lo = wf->hi = seg[sid].d;
 			++sid;
 		}
-		lo = wf->lo > -tl? wf->lo - 1 : -tl;
-		hi = wf->hi <  ql? wf->hi + 1 :  ql;
-		wf_next_basic(km, km_tb, opt, wf, is_tb? &tb : 0, lo, hi);
+		wf_next_basic(km, km_tb, opt, tl, ql, wf, is_tb? &tb : 0);
 		if ((wf->s&0xff) == 0) wf_stripe_shrink(wf, tl, ql);
 	}
 	r->s = stopped? -1 : wf->s;
@@ -492,12 +512,14 @@ static void wf_snapshot_free(void *km, wf_sss_t *sss)
 	kfree(km, sss->a);
 }
 
-static void wf_next_seg(void *km, const mwf_opt_t *opt, uint8_t *xbuf, wf_stripe_t *wf, wf_stripe_t *sf, int32_t lo, int32_t hi)
+static void wf_next_seg(void *km, const mwf_opt_t *opt, int32_t tl, int32_t ql, uint8_t *xbuf, wf_stripe_t *wf, wf_stripe_t *sf)
 {
-	int32_t d, *H, *E1, *E2, *F1, *F2;
+	int32_t d, lo, hi, *H, *E1, *E2, *F1, *F2;
 	const int32_t *pHx, *pHo1, *pHo2, *pE1, *pE2, *pF1, *pF2;
-	uint8_t *ax = xbuf - lo;
+	uint8_t *ax;
 
+	wf_next_intv(opt, wf, tl, ql, &lo, &hi);
+	ax = xbuf - lo;
 	wf_next_prep(km, opt, wf, lo, hi, &H, &E1, &F1, &E2, &F2, &pHx, &pHo1, &pHo2, &pE1, &pF1, &pE2, &pF2);
 	wf_next_tb(lo, hi, H, E1, F1, E2, F2, ax, pHx, pHo1, pHo2, pE1, pF1, pE2, pF2);
 	wf_next_prep(km, opt, sf, lo, hi, &H, &E1, &F1, &E2, &F2, &pHx, &pHo1, &pHo2, &pE1, &pF1, &pE2, &pF2);
@@ -566,7 +588,7 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 
 	while (1) {
 		wf_slice_t *p = &wf->a[wf->top];
-		int32_t d, lo, hi, *H = p->H;
+		int32_t d, *H = p->H;
 		for (d = p->lo; d <= p->hi; ++d) {
 			int32_t k;
 			if (H[d] < -1 || d + H[d] < -1 || H[d] >= tl || d + H[d] >= ql) continue;
@@ -578,11 +600,9 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 			H[d] = k;
 		}
 		if (d <= p->hi) break;
-		lo = wf->lo > -tl? wf->lo - 1 : -tl;
-		hi = wf->hi <  ql? wf->hi + 1 :  ql;
 		if ((wf->s + 1) % opt->step == 0)
 			wf_snapshot(km, &sss, sf);
-		wf_next_seg(km, opt, xbuf, wf, sf, lo, hi);
+		wf_next_seg(km, opt, tl, ql, xbuf, wf, sf);
 		if ((wf->s&0xff) == 0) wf_stripe_shrink(wf, tl, ql);
 	}
 	seg = wf_traceback_seg(km, &sss, last, &n_seg);
