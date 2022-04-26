@@ -66,7 +66,7 @@ static void wf_cigar_push1(void *km, wf_cigar_t *c, int32_t op, int32_t len)
 #define WF_NEG_INF (-0x40000000)
 
 typedef struct {
-	int32_t lo, hi;
+	int32_t lo, hi, lo1, hi1;
 	int32_t *mem, *H, *E1, *E2, *F1, *F2;
 } wf_slice_t;
 
@@ -133,40 +133,6 @@ static inline wf_slice_t *wf_stripe_get(wf_stripe_t *wf, int32_t x)
 	int32_t y = wf->top - x;
 	if (y < 0) y += wf->n;
 	return &wf->a[y];
-}
-
-static inline int good_diag(int32_t d, int32_t k, int32_t tl, int32_t ql) // check if (d,k) falls within the DP matrix
-{
-	return ((k >= -1 && k < tl) && (d + k >= -1 && d + k < ql));
-}
-
-static void wf_stripe_shrink(wf_stripe_t *wf, int32_t tl, int32_t ql)
-{
-	int32_t j, d;
-	for (d = wf->lo; d <= wf->hi; ++d) {
-		for (j = 0; j < wf->n; ++j) {
-			wf_slice_t *p = &wf->a[(wf->top + 1 + j) % wf->n];
-			if (d < p->lo || d > p->hi) continue;
-			if (good_diag(d, p->H[d], tl, ql)) break;
-			if (good_diag(d, p->E1[d], tl, ql) || good_diag(d, p->F1[d], tl, ql)) break;
-			if (good_diag(d, p->E2[d], tl, ql) || good_diag(d, p->F2[d], tl, ql)) break;
-		}
-		if (j < wf->n) break; // stop when we see a "good diagonal" in the stripe
-	}
-	assert(d <= wf->hi); // should never happen
-	wf->lo = d;
-	for (d = wf->hi; d >= wf->lo; --d) {
-		for (j = 0; j < wf->n; ++j) {
-			wf_slice_t *p = &wf->a[(wf->top + 1 + j) % wf->n];
-			if (d < p->lo || d > p->hi) continue;
-			if (good_diag(d, p->H[d], tl, ql)) break;
-			if (good_diag(d, p->E1[d], tl, ql) || good_diag(d, p->F1[d], tl, ql)) break;
-			if (good_diag(d, p->E2[d], tl, ql) || good_diag(d, p->F2[d], tl, ql)) break;
-		}
-		if (j < wf->n) break;
-	}
-	assert(d >= wf->lo);
-	wf->hi = d;
 }
 
 typedef struct {
@@ -241,23 +207,18 @@ static inline int32_t wf_extend1_padded(const char *ts, const char *qs, int32_t 
 
 static void wf_next_intv(const mwf_opt_t *opt, wf_stripe_t *wf, int32_t tl, int32_t ql, int32_t *lo, int32_t *hi)
 {
-	/*
 	int32_t l, h;
 	const wf_slice_t *fx, *fo1, *fo2, *fe1, *fe2;
-	fx  = wf_stripe_get(wf, opt->x);
-	fo1 = wf_stripe_get(wf, opt->o1 + opt->e1);
-	fo2 = wf_stripe_get(wf, opt->o2 + opt->e2);
-	fe1 = wf_stripe_get(wf, opt->e1);
-	fe2 = wf_stripe_get(wf, opt->e2);
-	l = fo1->lo < fo2->lo? fo1->lo : fo2->lo; l = l < fe1->lo? l : fe1->lo; l = l < fe2->lo? l : fe2->lo; l = l < fx->lo? l : fx->lo;
-	h = fo1->hi > fo2->hi? fo1->hi : fo2->hi; h = h > fe1->hi? h : fe1->hi; h = h > fe2->hi? h : fe2->hi; h = h > fx->hi? h : fx->hi;
-	--l, ++h;
-	if (l < -tl) l = -tl;
-	if (h >  ql) h =  ql;
+	fx  = wf_stripe_get(wf, opt->x - 1);
+	fo1 = wf_stripe_get(wf, opt->o1 + opt->e1 - 1);
+	fo2 = wf_stripe_get(wf, opt->o2 + opt->e2 - 1);
+	fe1 = wf_stripe_get(wf, opt->e1 - 1);
+	fe2 = wf_stripe_get(wf, opt->e2 - 1);
+	l = fo1->lo1 < fo2->lo1? fo1->lo1 : fo2->lo1; l = l < fe1->lo1? l : fe1->lo1; l = l < fe2->lo1? l : fe2->lo1; l = l < fx->lo1? l : fx->lo1;
+	h = fo1->hi1 > fo2->hi1? fo1->hi1 : fo2->hi1; h = h > fe1->hi1? h : fe1->hi1; h = h > fe2->hi1? h : fe2->hi1; h = h > fx->hi1? h : fx->hi1;
+	l = l > -tl? l - 1 : -tl;
+	h = h <  ql? h + 1 :  ql;
 	*lo = l, *hi = h;
-	*/
-	*lo = wf->lo > -tl? wf->lo - 1 : -tl;
-	*hi = wf->hi <  ql? wf->hi + 1 :  ql;
 }
 
 static void wf_next_prep(void *km, const mwf_opt_t *opt, wf_stripe_t *wf, int32_t lo, int32_t hi,
@@ -297,6 +258,7 @@ static void wf_next_score(int32_t lo, int32_t hi, int32_t *H, int32_t *E1, int32
 		// if (H[d] >= -1) fprintf(stderr, "s=%d, d=%d, k=%d, (%d,%d)\n", wf->s, d, H[d], E1[d], F1[d]);
 	}
 }
+
 static void wf_next_tb(int32_t lo, int32_t hi, int32_t *H, int32_t *E1, int32_t *F1, int32_t *E2, int32_t *F2, uint8_t *ax,
 					   const int32_t *pHx, const int32_t *pHo1, const int32_t *pHo2,
 					   const int32_t *pE1, const int32_t *pF1, const int32_t *pE2, const int32_t *pF2)
@@ -326,6 +288,29 @@ static void wf_next_tb(int32_t lo, int32_t hi, int32_t *H, int32_t *E1, int32_t 
 	}
 }
 
+static inline int good_diag(int32_t d, int32_t k, int32_t tl, int32_t ql) // check if (d,k) falls within the DP matrix
+{
+	return ((k >= -1 && k < tl) && (d + k >= -1 && d + k < ql));
+}
+
+static inline int good_diag_slice(int32_t d, const wf_slice_t *p, int32_t tl, int32_t ql) // assuming p->lo <= d <= p->hi; otherwise segfault
+{
+	return good_diag(d, p->H[d], tl, ql) || good_diag(d, p->E1[d], tl, ql) || good_diag(d, p->E2[d], tl, ql) || good_diag(d, p->F1[d], tl, ql) || good_diag(d, p->F2[d], tl, ql);
+}
+
+static void wf_next_real_bound(wf_slice_t *f, int32_t tl, int32_t ql)
+{
+	int32_t d;
+	for (d = f->lo; d <= f->hi; ++d)
+		if (good_diag_slice(d, f, tl, ql))
+			break;
+	f->lo1 = d;
+	for (d = f->hi; d >= f->lo1; --d)
+		if (good_diag_slice(d, f, tl, ql))
+			break;
+	f->hi1 = d;
+}
+
 /*
  * Core algorithm
  */
@@ -342,6 +327,7 @@ static void wf_next_basic(void *km, void *km_tb, const mwf_opt_t *opt, int32_t t
 	} else {
 		wf_next_score(lo, hi, H, E1, F1, E2, F2, pHx, pHo1, pHo2, pE1, pF1, pE2, pF2);
 	}
+	wf_next_real_bound(&wf->a[wf->top], tl, ql);
 	if (H[lo] >= -1 || E1[lo] >= -1 || F1[lo] >= -1 || E2[lo] >= -1 || F2[lo] >= -1) wf->lo = lo;
 	if (H[hi] >= -1 || E1[hi] >= -1 || F1[hi] >= -1 || E2[hi] >= -1 || F2[hi] >= -1) wf->hi = hi;
 }
@@ -439,7 +425,6 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 			++sid;
 		}
 		wf_next_basic(km, km_tb, opt, tl, ql, wf, is_tb? &tb : 0);
-		if ((wf->s&0xff) == 0) wf_stripe_shrink(wf, tl, ql);
 	}
 	r->s = stopped? -1 : wf->s;
 	if (km && (opt->flag&MWF_F_DEBUG)) {
@@ -543,6 +528,7 @@ static void wf_next_seg(void *km, const mwf_opt_t *opt, int32_t tl, int32_t ql, 
 		h = x == 4? f2 : h;
 		H[d] = h;
 	}
+	wf_next_real_bound(&wf->a[wf->top], tl, ql);
 	if (H[lo] >= -1 || E1[lo] >= -1 || F1[lo] >= -1 || E2[lo] >= -1 || F2[lo] >= -1) wf->lo = lo;
 	if (H[hi] >= -1 || E1[hi] >= -1 || F1[hi] >= -1 || E2[hi] >= -1 || F2[hi] >= -1) wf->hi = hi;
 }
@@ -603,7 +589,6 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 		if ((wf->s + 1) % opt->step == 0)
 			wf_snapshot(km, &sss, sf);
 		wf_next_seg(km, opt, tl, ql, xbuf, wf, sf);
-		if ((wf->s&0xff) == 0) wf_stripe_shrink(wf, tl, ql);
 	}
 	seg = wf_traceback_seg(km, &sss, last, &n_seg);
 	if (km && (opt->flag&MWF_F_DEBUG)) {
