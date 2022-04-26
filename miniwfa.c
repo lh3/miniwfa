@@ -128,7 +128,7 @@ static void wf_stripe_destroy(void *km, wf_stripe_t *wf)
 	kfree(km, wf);
 }
 
-static inline wf_slice_t *wf_stripe_get(wf_stripe_t *wf, int32_t x)
+static inline wf_slice_t *wf_stripe_get(const wf_stripe_t *wf, int32_t x)
 {
 	int32_t y = wf->top - x;
 	if (y < 0) y += wf->n;
@@ -205,7 +205,7 @@ static inline int32_t wf_extend1_padded(const char *ts, const char *qs, int32_t 
 
 #define wf_max(a, b) ((a) >= (b)? (a) : (b))
 
-static void wf_next_intv(const mwf_opt_t *opt, wf_stripe_t *wf, int32_t tl, int32_t ql, int32_t *lo, int32_t *hi)
+static void wf_next_intv(const mwf_opt_t *opt, const wf_stripe_t *wf, int32_t tl, int32_t ql, int32_t *lo, int32_t *hi)
 {
 	int32_t l, h;
 	const wf_slice_t *fx, *fo1, *fo2, *fe1, *fe2;
@@ -314,11 +314,17 @@ static void wf_next_real_bound(wf_slice_t *f, int32_t tl, int32_t ql)
 /*
  * Core algorithm
  */
-static void wf_next_basic(void *km, void *km_tb, const mwf_opt_t *opt, int32_t tl, int32_t ql, wf_stripe_t *wf, wf_tb_t *tb)
+static void wf_next_basic(void *km, void *km_tb, const mwf_opt_t *opt, int32_t tl, int32_t ql, wf_stripe_t *wf, wf_tb_t *tb, int32_t d_pinned)
 {
 	int32_t lo, hi, *H, *E1, *E2, *F1, *F2;
 	const int32_t *pHx, *pHo1, *pHo2, *pE1, *pE2, *pF1, *pF2;
 	wf_next_intv(opt, wf, tl, ql, &lo, &hi);
+	if (d_pinned != INT32_MAX) {
+		fprintf(stderr, "%d: [%d,%d]\n", d_pinned, lo, hi);
+		assert(d_pinned >= lo && d_pinned <= hi);
+		lo = d_pinned > -tl? d_pinned - 1 : -tl;
+		hi = d_pinned <  ql? d_pinned + 1 :  ql;
+	}
 	wf_next_prep(km, opt, wf, lo, hi, &H, &E1, &F1, &E2, &F2, &pHx, &pHo1, &pHo2, &pE1, &pF1, &pE2, &pF2);
 	if (tb) {
 		uint8_t *ax;
@@ -419,12 +425,10 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 			stopped = 1;
 			break;
 		}
-		if (is_tb && seg && sid < n_seg && seg[sid].s == wf->s) {
-			assert(seg[sid].d >= wf->lo && seg[sid].d <= wf->hi);
-			wf->lo = wf->hi = seg[sid].d;
-			++sid;
-		}
-		wf_next_basic(km, km_tb, opt, tl, ql, wf, is_tb? &tb : 0);
+		d = INT32_MAX;
+		if (is_tb && seg && sid < n_seg && seg[sid].s == wf->s)
+			d = seg[sid++].d;
+		wf_next_basic(km, km_tb, opt, tl, ql, wf, is_tb? &tb : 0, d);
 	}
 	r->s = stopped? -1 : wf->s;
 	if (km && (opt->flag&MWF_F_DEBUG)) {
