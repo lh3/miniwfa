@@ -26,5 +26,5 @@ void mwf_assert_cigar(const mwf_opt_t *opt, int32_t n_cigar, const uint32_t *cig
 	s = mwf_cigar2score(opt, n_cigar, cigar, &tl, &ql);
 	assert(tl == tl0);
 	assert(ql == ql0);
-	assert(s == s0);
+	assert(s <= s0); // "<" may happen with heuristics
 }

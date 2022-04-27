@@ -14,6 +14,8 @@ void mwf_opt_init(mwf_opt_t *opt)
 	opt->x  = 4; // corresponding SW score: m=1, x=3, o1=4, e1=3/2, o2=15, e2=1/2
 	opt->o1 = 4, opt->e1 = 2;
 	opt->o2 = 15, opt->e2 = 1;
+	opt->max_width = 1000;
+	opt->max_lag = opt->bw_dyn = -1;
 }
 
 /*
@@ -310,6 +312,37 @@ static void wf_next_real_bound(wf_slice_t *f, int32_t tl, int32_t ql)
 	f->hi1 = d;
 }
 
+static void wf_prune(const mwf_opt_t *opt, int32_t tl, int32_t ql, wf_stripe_t *wf)
+{
+	int32_t t, d, min_f = INT32_MAX, min_d = INT32_MAX;
+	if (opt->max_lag < 0 && opt->bw_dyn < 0) return;
+	for (t = 0; t < wf->n; ++t) {
+		wf_slice_t *p = &wf->a[(t + wf->top) % wf->n];
+		for (d = p->lo1; d <= p->hi1; ++d) {
+			int32_t k = p->H[d], i = k + d;
+			int32_t f = tl - k > ql - i? tl - k : ql - i;
+			if (f < min_f) min_f = f, min_d = d;
+		}
+	}
+	for (t = 0; t < wf->n; ++t) {
+		wf_slice_t *p = &wf->a[(t + wf->top) % wf->n];
+		for (d = p->lo1; d <= p->hi1; ++d) {
+			int32_t k = p->H[d], i = k + d;
+			int32_t f = tl - k > ql - i? tl - k : ql - i;
+			if (opt->max_lag >= 0 && f - min_f <= opt->max_lag) break;
+			if (opt->bw_dyn >= 0 && min_d - d <= opt->bw_dyn) break;
+		}
+		p->lo1 = d;
+		for (d = p->hi1; d >= p->lo1; --d) {
+			int32_t k = p->H[d], i = k + d;
+			int32_t f = tl - k > ql - i? tl - k : ql - i;
+			if (opt->max_lag >= 0 && f - min_f <= opt->max_lag) break;
+			if (opt->bw_dyn >= 0 && d - min_d <= opt->bw_dyn) break;
+		}
+		p->hi1 = d;
+	}
+}
+
 /*
  * Core algorithm
  */
@@ -430,6 +463,8 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 		if (is_tb && seg && sid < n_seg && seg[sid].s == wf->s)
 			d = seg[sid++].d;
 		wf_next_basic(km, km_tb, opt, tl, ql, wf, is_tb? &tb : 0, d);
+		if (wf->a[wf->top].hi - wf->a[wf->top].lo + 1 > opt->max_width && (wf->s&0x3f) == 0)
+			wf_prune(opt, tl, ql, wf);
 	}
 	r->s = stopped? -1 : wf->s;
 	if (km && (opt->flag&MWF_F_DEBUG)) {
@@ -592,6 +627,8 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 		if ((wf->s + 1) % opt->step == 0)
 			wf_snapshot(km, &sss, sf);
 		wf_next_seg(km, opt, tl, ql, xbuf, wf, sf);
+		if (wf->a[wf->top].hi - wf->a[wf->top].lo + 1 > opt->max_width && (wf->s&0x3f) == 0)
+			wf_prune(opt, tl, ql, wf);
 	}
 	seg = wf_traceback_seg(km, &sss, last, &n_seg);
 	if (km && (opt->flag&MWF_F_DEBUG)) {

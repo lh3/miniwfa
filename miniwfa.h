@@ -33,10 +33,13 @@
 #define MWF_F_DEBUG    0x100
 
 typedef struct {
-	int32_t flag;
-	int32_t x, o1, e1, o2, e2;
-	int32_t step;
-	int32_t s_stop;
+	int32_t flag; // bit flag; see MWF_F_* macros
+	int32_t x, o1, e1, o2, e2; // scoring
+	int32_t step; // distance between checkpoints in the low-memory mode
+	int32_t s_stop; // stop the alignment if score is higher than this
+	int32_t max_width; // start to apply heuristic if the WF size is larger than this
+	int32_t bw_dyn; // dynamic band width
+	int32_t max_lag; // drop cells if lagging behind the best wavefront
 } mwf_opt_t;
 
 typedef struct {

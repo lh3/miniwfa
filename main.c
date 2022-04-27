@@ -28,13 +28,16 @@ int main(int argc, char *argv[])
 	void *km = 0;
 
 	mwf_opt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "cKdep:a", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "cKdep:al:n:w:", 0)) >= 0) {
 		if (o.opt == 'K') use_kalloc = !use_kalloc;
 		else if (o.opt == 'c') opt.flag |= MWF_F_CIGAR;
 		else if (o.opt == 'd') opt.flag |= MWF_F_DEBUG;
 		else if (o.opt == 'p') opt.flag |= MWF_F_CIGAR, opt.step = atoi(o.arg);
 		else if (o.opt == 'a') opt.o2 = opt.o1, opt.e2 = opt.e1;
 		else if (o.opt == 'e') opt.x = 1, opt.o1 = opt.o2 = 0, opt.e1 = opt.e2 = 1;
+		else if (o.opt == 'l') opt.max_lag = atoi(o.arg);
+		else if (o.opt == 'n') opt.max_width = atoi(o.arg);
+		else if (o.opt == 'w') opt.bw_dyn = atoi(o.arg);
 		else if (1) {
 			fprintf(stderr, "ERROR: unknown option\n");
 			return 1;
@@ -48,6 +51,9 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "  -a       mimic affine gap\n");
 		fprintf(stderr, "  -e       mimic edit distance\n");
 		fprintf(stderr, "  -K       disable the kalloc allocator\n");
+		fprintf(stderr, "  -n INT   start to apply heuristics if the size of WF is over INT [%d]\n", opt.max_width);
+		fprintf(stderr, "  -w INT   dynamic bandwidth [%d]\n", opt.bw_dyn);
+		fprintf(stderr, "  -l INT   max lag [%d]\n", opt.max_lag);
 		return 1;
 	}
 
