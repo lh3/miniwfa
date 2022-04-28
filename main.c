@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
 	void *km = 0;
 
 	mwf_opt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "cKdep:al:n:w:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "cKdep:al:n:", 0)) >= 0) {
 		if (o.opt == 'K') use_kalloc = !use_kalloc;
 		else if (o.opt == 'c') opt.flag |= MWF_F_CIGAR;
 		else if (o.opt == 'd') opt.flag |= MWF_F_DEBUG;
@@ -37,7 +37,6 @@ int main(int argc, char *argv[])
 		else if (o.opt == 'e') opt.x = 1, opt.o1 = opt.o2 = 0, opt.e1 = opt.e2 = 1;
 		else if (o.opt == 'l') opt.max_lag = atoi(o.arg);
 		else if (o.opt == 'n') opt.max_width = atoi(o.arg);
-		else if (o.opt == 'w') opt.bw_dyn = atoi(o.arg);
 		else if (1) {
 			fprintf(stderr, "ERROR: unknown option\n");
 			return 1;
@@ -52,7 +51,6 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "  -e       mimic edit distance\n");
 		fprintf(stderr, "  -K       disable the kalloc allocator\n");
 		//fprintf(stderr, "  -n INT   start to apply heuristics if the size of WF is over INT [%d]\n", opt.max_width);
-		//fprintf(stderr, "  -w INT   dynamic bandwidth [%d]\n", opt.bw_dyn);
 		//fprintf(stderr, "  -l INT   max lag [%d]\n", opt.max_lag);
 		return 1;
 	}
@@ -77,6 +75,7 @@ int main(int argc, char *argv[])
 				printf("%d%c", rst.cigar[i]>>4, "MIDNSHP=XBid"[rst.cigar[i]&0xf]);
 		}
 		putchar('\n');
+		fflush(stdout);
 		kfree(km, rst.cigar);
 		if (use_kalloc) km_destroy(km);
 		fprintf(stderr, "T\t%s\t%s\t%.3f\n", ks1->name.s, ks2->name.s, cputime() - t);

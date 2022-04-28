@@ -38,7 +38,6 @@ typedef struct {
 	int32_t step; // distance between checkpoints in the low-memory mode
 	int32_t s_stop; // stop the alignment if score is higher than this
 	int32_t max_width; // start to apply heuristic if the WF size is larger than this; TODO: not stable
-	int32_t bw_dyn; // dynamic band width; TODO: not stable
 	int32_t max_lag; // drop cells if lagging behind the best wavefront; TODO: not stable
 } mwf_opt_t;
 
