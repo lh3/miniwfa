@@ -157,18 +157,26 @@ int32_t mg_fastcmp(void *km, int32_t l1, const char *s1, int32_t l2, const char 
 	}
 	kfree(km, a);
 
-	// compute mlen
+	// find co-linear chain with LIS
 	radix_sort_mwf64(b, b + n_b);
 	for (i = 0; i < n_b; ++i)
 		b[i] = b[i]>>32 | b[i]<<32;
 	KMALLOC(km, lis, n_b);
 	n_lis = mg_lis_64(km, n_b, b, lis);
-	for (i = 1, mlen = k; i < n_lis; ++i) {
-		int32_t ll2 = (int32_t)(b[lis[i]]>>32) - (int32_t)(b[lis[i-1]]>>32);
-		int32_t ll1 = (int32_t)b[lis[i]] - (int32_t)b[lis[i-1]];
-		mlen += ll1 > k && ll2 > k? k : ll1 < ll2? ll1 : ll2;
-	}
+	a = Kmalloc(km, uint64_t, n_lis);
+	for (i = 0; i < n_lis; ++i) a[i] = b[lis[i]];
 	kfree(km, lis);
 	kfree(km, b);
+	b = Kmalloc(km, uint64_t, n_lis);
+	memcpy(b, a, sizeof(uint64_t) * n_lis);
+	kfree(km, a);
+	a = b;
+
+	// compute mlen
+	for (i = 1, mlen = k; i < n_lis; ++i) {
+		int32_t ll2 = (int32_t)(a[i]>>32) - (int32_t)(a[i-1]>>32);
+		int32_t ll1 = (int32_t)a[i] - (int32_t)a[i-1];
+		mlen += ll1 > k && ll2 > k? k : ll1 < ll2? ll1 : ll2;
+	}
 	return mlen;
 }
