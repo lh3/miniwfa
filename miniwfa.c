@@ -463,7 +463,7 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 		if (is_tb && seg && sid < n_seg && seg[sid].s == wf->s)
 			d = seg[sid++].d;
 		wf_next_basic(km, km_tb, opt, tl, ql, wf, is_tb? &tb : 0, d);
-		if (wf->a[wf->top].hi - wf->a[wf->top].lo + 1 > opt->max_width && (wf->s&0x3f) == 0)
+		if (wf->a[wf->top].hi - wf->a[wf->top].lo + 1 > opt->max_width && (wf->s&0x7f) == 0)
 			wf_prune(opt, tl, ql, wf);
 	}
 	r->s = stopped? -1 : wf->s;
@@ -627,7 +627,7 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 		if ((wf->s + 1) % opt->step == 0)
 			wf_snapshot(km, &sss, sf);
 		wf_next_seg(km, opt, tl, ql, xbuf, wf, sf);
-		if (wf->a[wf->top].hi - wf->a[wf->top].lo + 1 > opt->max_width && (wf->s&0x3f) == 0)
+		if (wf->a[wf->top].hi - wf->a[wf->top].lo + 1 > opt->max_width && (wf->s&0x7f) == 0)
 			wf_prune(opt, tl, ql, wf);
 	}
 	seg = wf_traceback_seg(km, &sss, last, &n_seg);

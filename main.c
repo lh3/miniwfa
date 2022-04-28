@@ -51,9 +51,9 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "  -a       mimic affine gap\n");
 		fprintf(stderr, "  -e       mimic edit distance\n");
 		fprintf(stderr, "  -K       disable the kalloc allocator\n");
-		fprintf(stderr, "  -n INT   start to apply heuristics if the size of WF is over INT [%d]\n", opt.max_width);
-		fprintf(stderr, "  -w INT   dynamic bandwidth [%d]\n", opt.bw_dyn);
-		fprintf(stderr, "  -l INT   max lag [%d]\n", opt.max_lag);
+		//fprintf(stderr, "  -n INT   start to apply heuristics if the size of WF is over INT [%d]\n", opt.max_width);
+		//fprintf(stderr, "  -w INT   dynamic bandwidth [%d]\n", opt.bw_dyn);
+		//fprintf(stderr, "  -l INT   max lag [%d]\n", opt.max_lag);
 		return 1;
 	}
 
