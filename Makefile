@@ -4,7 +4,7 @@ CFLAGS=		-g -Wall -O3 -march=native #-fopt-info-vec-optimized
 CXXFLAGS=	$(CFLAGS) -std=c++14
 CPPFLAGS=
 INCLUDES=
-OBJS=		kalloc.o miniwfa.o mwf-dbg.o
+OBJS=		kalloc.o miniwfa.o mwf-approx.o mwf-dbg.o
 PROG=		test-mwf test-wfa test-wfalm
 LIBS=		-lz -lpthread -lm
 
@@ -47,5 +47,6 @@ kalloc.o: kalloc.h
 main-wfa.o: ketopt.h kseq.h
 main.o: ketopt.h kalloc.h miniwfa.h kseq.h
 miniwfa.o: miniwfa.h kalloc.h
+mwf-approx.o: kalloc.h
 mwf-dbg.o: miniwfa.h
 main-wfalm.o: lib/wfa_lm.hpp ketopt.h kseq.h
