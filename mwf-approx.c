@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdint.h>
+#include "miniwfa.h"
 #include "kalloc.h"
 
 static unsigned char seq_nt4_table[256] = {
@@ -123,11 +124,12 @@ static int32_t mg_fc_kmer(int32_t len, const char *seq, int32_t rid, int32_t k, 
 	return n;
 }
 
-int32_t mg_fastcmp(void *km, int32_t l1, const char *s1, int32_t l2, const char *s2, int32_t k, int32_t max_occ)
+static uint64_t *mg_chain(void *km, int32_t l1, const char *s1, int32_t l2, const char *s2, int32_t k, int32_t max_occ, int32_t *n_lis_)
 {
-	int32_t i, n_a, n_b, m_b, i0, mlen, n_lis, *lis;
+	int32_t i, n_a, n_b, m_b, i0, n_lis, *lis;
 	uint64_t *a, *b;
 
+	*n_lis_ = 0;
 	if (l1 < k || l2 < k) return 0;
 	assert(k >= 2 && k <= 15);
 
@@ -170,13 +172,32 @@ int32_t mg_fastcmp(void *km, int32_t l1, const char *s1, int32_t l2, const char 
 	b = Kmalloc(km, uint64_t, n_lis);
 	memcpy(b, a, sizeof(uint64_t) * n_lis);
 	kfree(km, a);
-	a = b;
+	*n_lis_ = n_lis;
+	for (i = 0; i < n_lis; ++i) // switch back, such that seq1 on the high bits
+		b[i] = b[i]>>32 | b[i]<<32;
+	return b;
+}
 
-	// compute mlen
-	for (i = 1, mlen = k; i < n_lis; ++i) {
-		int32_t ll2 = (int32_t)(a[i]>>32) - (int32_t)(a[i-1]>>32);
-		int32_t ll1 = (int32_t)a[i] - (int32_t)a[i-1];
-		mlen += ll1 > k && ll2 > k? k : ll1 < ll2? ll1 : ll2;
+int32_t mwf_bound(void *km, const mwf_opt_t *opt, int32_t l1, const char *s1, int32_t l2, const char *s2, int32_t k, int32_t max_occ)
+{
+	int32_t n_a, i, x0, y0, pen = 0;
+	uint64_t *a;
+	a = mg_chain(km, l1, s1, l2, s2, k, max_occ, &n_a);
+	for (i = 0, x0 = y0 = 0; i < n_a; ++i) {
+		int32_t x1 = a[i]>>32, y1 = (int32_t)a[i];
+		int32_t g, px, p1, p2, d;
+		if (x1 - x0 == y1 - y0 && x1 - x0 <= k) {
+		} else {
+			if (x1 - x0 > y1 - y0) g = (x1 - x0) - (y1 - y0), d = y1 - y0;
+			else g = (y1 - y0) - (x1 - x0), d = x1 - x0;
+			px = d <= k? 0 : (d - k) * opt->x;
+			p1 = opt->o1 + g * opt->e1;
+			p2 = opt->o2 + g * opt->e2;
+			pen += px + (p1 < p2? p1 : p2);
+		}
+//		printf("X\t(%d,%d) -> (%d,%d)\t%d\n", x0, y0, x1, y1, pen);
+		x0 = x1, y0 = y1;
 	}
-	return mlen;
+	kfree(km, a);
+	return pen;
 }
