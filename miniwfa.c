@@ -465,11 +465,7 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 			wf_prune(opt, tl, ql, wf);
 	}
 	r->s = stopped? -1 : wf->s;
-	if (km && (opt->flag&MWF_F_DEBUG)) {
-		km_stat_t st;
-		km_stat(km, &st);
-		fprintf(stderr, "tl=%d, ql=%d, cap=%ld, avail=%ld, n_blks=%ld\n", tl, ql, st.capacity, st.available, st.n_blocks);
-	}
+	if (km && (opt->flag&MWF_F_DEBUG)) km_stat_print(km);
 	if (is_tb && !stopped) {
 		r->cigar = wf_traceback(km, opt, &tb, tl-1, pts, ql-1, pqs, last_state, &r->n_cigar);
 		km_destroy(km_tb);

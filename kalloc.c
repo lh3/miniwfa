@@ -203,3 +203,11 @@ void km_stat(const void *_km, km_stat_t *s)
 		s->largest = s->largest > size? s->largest : size;
 	}
 }
+
+void km_stat_print(const void *km)
+{
+	km_stat_t st;
+	km_stat(km, &st);
+	fprintf(stderr, "[km_stat] cap=%ld, avail=%ld, largest=%ld, n_core=%ld, n_block=%ld\n",
+			st.capacity, st.available, st.largest, st.n_blocks, st.n_cores);
+}
