@@ -178,26 +178,63 @@ static uint64_t *mg_chain(void *km, int32_t l1, const char *s1, int32_t l2, cons
 	return b;
 }
 
-int32_t mwf_bound(void *km, const mwf_opt_t *opt, int32_t l1, const char *s1, int32_t l2, const char *s2, int32_t k, int32_t max_occ)
+#define kroundup32(x) (--(x), (x)|=(x)>>1, (x)|=(x)>>2, (x)|=(x)>>4, (x)|=(x)>>8, (x)|=(x)>>16, ++(x))
+
+typedef struct {
+	int32_t m, n;
+	uint32_t *cigar;
+} wf_cigar_t;
+
+static inline void wf_cigar_push1(void *km, wf_cigar_t *c, int32_t op, int32_t len)
 {
-	int32_t n_a, i, x0, y0, pen = 0;
-	uint64_t *a;
-	a = mg_chain(km, l1, s1, l2, s2, k, max_occ, &n_a);
-	for (i = 0, x0 = y0 = 0; i < n_a; ++i) {
-		int32_t x1 = a[i]>>32, y1 = (int32_t)a[i];
-		int32_t g, px, p1, p2, d;
-		if (x1 - x0 == y1 - y0 && x1 - x0 <= k) {
-		} else {
-			if (x1 - x0 > y1 - y0) g = (x1 - x0) - (y1 - y0), d = y1 - y0;
-			else g = (y1 - y0) - (x1 - x0), d = x1 - x0;
-			px = d <= k? 0 : (d - k) * opt->x;
-			p1 = opt->o1 + g * opt->e1;
-			p2 = opt->o2 + g * opt->e2;
-			pen += px + (p1 < p2? p1 : p2);
+	if (c->n && op == (c->cigar[c->n-1]&0xf)) {
+		c->cigar[c->n-1] += len<<4;
+	} else {
+		if (c->n == c->m) {
+			c->m = c->m + (c->m>>1) + 4;
+			c->cigar = Krealloc(km, uint32_t, c->cigar, c->m);
 		}
-//		printf("X\t(%d,%d) -> (%d,%d)\t%d\n", x0, y0, x1, y1, pen);
+		c->cigar[c->n++] = len<<4 | op;
+	}
+}
+
+static void wf_cigar_push(void *km, wf_cigar_t *c, int32_t n_cigar, const uint32_t *cigar)
+{
+	if (n_cigar == 0) return;
+	wf_cigar_push1(km, c, cigar[0]&0xf, cigar[0]>>4);
+	if (c->n + n_cigar - 1 > c->m) {
+		c->m = c->n + n_cigar - 1;
+		kroundup32(c->m);
+		c->cigar = Krealloc(km, uint32_t, c->cigar, c->m);
+	}
+	memcpy(&c->cigar[c->n], &cigar[1], sizeof(*cigar) * (n_cigar - 1));
+	c->n += n_cigar - 1;
+}
+
+void mwf_wfa_heuristic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
+{
+	int32_t k = 13, max_occ = 1;
+	int32_t n_a, i, x0, y0;
+	uint64_t *a;
+	wf_cigar_t c = {0,0,0};
+
+	a = mg_chain(km, tl, ts, ql, qs, k, max_occ, &n_a);
+	r->s = 0;
+	for (i = 0, x0 = y0 = 0; i <= n_a; ++i) {
+		int32_t x1, y1;
+		if (i == n_a) x1 = tl, y1 = ql;
+		else x1 = (int32_t)(a[i]>>32) + 1, y1 = (int32_t)a[i] + 1;
+		if (x1 - x0 == y1 - y0 && x1 - x0 <= k) {
+			if (opt->flag&MWF_F_CIGAR)
+				wf_cigar_push1(km, &c, 7, x1 - x0);
+		} else {
+			mwf_rst_t q;
+			mwf_wfa(km, opt, x1 - x0, &ts[x0], y1 - y0, &qs[y0], &q);
+			if (opt->flag&MWF_F_CIGAR)
+				wf_cigar_push(km, &c, q.n_cigar, q.cigar);
+			r->s += q.s;
+		}
 		x0 = x1, y0 = y1;
 	}
-	kfree(km, a);
-	return pen;
+	r->n_cigar = c.n, r->cigar = c.cigar;
 }
