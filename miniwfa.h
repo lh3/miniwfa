@@ -30,6 +30,7 @@
 #include <stdint.h>
 
 #define MWF_F_CIGAR    0x1
+#define MWF_F_CHAIN    0x2
 #define MWF_F_DEBUG    0x100
 
 typedef struct {

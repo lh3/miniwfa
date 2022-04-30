@@ -647,7 +647,7 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 	return seg;
 }
 
-void mwf_wfa(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
+void mwf_wfa_exact(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
 {
 	int32_t n_seg = 0;
 	wf_chkpt_t *seg = 0;
@@ -850,7 +850,7 @@ static void wf_cigar_push(void *km, wf_cigar_t *c, int32_t n_cigar, const uint32
 	c->n += n_cigar - 1;
 }
 
-void mwf_wfa_heuristic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
+void mwf_wfa_chaining(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
 {
 	int32_t k = 13, max_occ = 1;
 	int32_t n_a, i, x0, y0;
@@ -868,7 +868,7 @@ void mwf_wfa_heuristic(void *km, const mwf_opt_t *opt, int32_t tl, const char *t
 				wf_cigar_push1(km, &c, 7, x1 - x0);
 		} else {
 			mwf_rst_t q;
-			mwf_wfa(km, opt, x1 - x0, &ts[x0], y1 - y0, &qs[y0], &q);
+			mwf_wfa_exact(km, opt, x1 - x0, &ts[x0], y1 - y0, &qs[y0], &q);
 			if (opt->flag&MWF_F_CIGAR)
 				wf_cigar_push(km, &c, q.n_cigar, q.cigar);
 			r->s += q.s;
@@ -876,4 +876,10 @@ void mwf_wfa_heuristic(void *km, const mwf_opt_t *opt, int32_t tl, const char *t
 		x0 = x1, y0 = y1;
 	}
 	r->n_cigar = c.n, r->cigar = c.cigar;
+}
+
+void mwf_wfa(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
+{
+	if (opt->flag & MWF_F_CHAIN) mwf_wfa_chaining(km, opt, tl, ts, ql, qs, r);
+	else mwf_wfa_exact(km, opt, tl, ts, ql, qs, r);
 }
