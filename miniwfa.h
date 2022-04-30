@@ -75,7 +75,7 @@ void mwf_wfa(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t
 int32_t mwf_cigar2score(const mwf_opt_t *opt, int32_t n_cigar, const uint32_t *cigar, int32_t *tl, int32_t *ql);
 void mwf_assert_cigar(const mwf_opt_t *opt, int32_t n_cigar, const uint32_t *cigar, int32_t tl0, int32_t ql0, int32_t s0);
 
-int32_t mg_fastcmp(void *km, int32_t l1, const char *s1, int32_t l2, const char *s2, int32_t k, int32_t max_occ);
+int32_t mwf_bound(void *km, const mwf_opt_t *opt, int32_t l1, const char *s1, int32_t l2, const char *s2, int32_t k, int32_t max_occ);
 
 #ifdef __cplusplus
 }
