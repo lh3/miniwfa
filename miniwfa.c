@@ -14,7 +14,7 @@ void mwf_opt_init(mwf_opt_t *opt)
 	opt->x  = 4; // corresponding SW score: m=1, x=3, o1=4, e1=3/2, o2=15, e2=1/2
 	opt->o1 = 4, opt->e1 = 2;
 	opt->o2 = 15, opt->e2 = 1;
-	opt->kmer = 13, opt->max_occ = 2;
+	opt->kmer = 13, opt->max_occ = 2, opt->min_len = 30;
 }
 
 /*
@@ -831,7 +831,7 @@ void mwf_wfa_chaining(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts
 	wf_cigar_t c = {0,0,0};
 
 	a = mg_chain(km, tl, ts, ql, qs, opt->kmer, opt->max_occ, &n_a);
-	n_a = wf_anchor_filter(n_a, a, tl, ql, opt->kmer, opt->kmer * 2);
+	n_a = wf_anchor_filter(n_a, a, tl, ql, opt->kmer, opt->min_len);
 	r->s = 0;
 	for (i = 0, x0 = y0 = 0; i <= n_a; ++i) {
 		int32_t x1, y1;

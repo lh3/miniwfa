@@ -39,7 +39,7 @@ typedef struct {
 	int32_t step; // distance between checkpoints in the low-memory mode
 	int32_t s_stop; // stop the alignment if score is higher than this
 	// chaining heuristics
-	int32_t max_occ, kmer;
+	int32_t max_occ, kmer, min_len;
 } mwf_opt_t;
 
 typedef struct {
