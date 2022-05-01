@@ -655,28 +655,6 @@ void mwf_wfa_exact(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, i
 /*
  * Heuristics
  */
-static unsigned char seq_nt4_table[256] = {
-	0, 1, 2, 3,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
-	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
-	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
-	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
-	4, 0, 4, 1,  4, 4, 4, 2,  4, 4, 4, 4,  4, 4, 4, 4,
-	4, 4, 4, 4,  3, 3, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
-	4, 0, 4, 1,  4, 4, 4, 2,  4, 4, 4, 4,  4, 4, 4, 4,
-	4, 4, 4, 4,  3, 3, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
-	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
-	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
-	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
-	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
-	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
-	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
-	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
-	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4
-};
-
-/*
- * from ksort.h
- */
 #define RS_MIN_SIZE 64
 #define RS_MAX_BITS 8
 
@@ -735,9 +713,6 @@ static unsigned char seq_nt4_table[256] = {
 #define sort_key_64(a) ((a))
 KRADIX_SORT_INIT(mwf64, uint64_t, sort_key_64, 8) 
 
-/*
- * from fastcmp.c
- */
 static int32_t mg_lis_64(void *km, int32_t n, const uint64_t *a, int32_t *b)
 {
 	int32_t i, k, L = 0, *M, *P = b;
@@ -758,6 +733,25 @@ static int32_t mg_lis_64(void *km, int32_t n, const uint64_t *a, int32_t *b)
 	kfree(km, M);
 	return L;
 }
+
+static unsigned char seq_nt4_table[256] = {
+	0, 1, 2, 3,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 0, 4, 1,  4, 4, 4, 2,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  3, 3, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 0, 4, 1,  4, 4, 4, 2,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  3, 3, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4
+};
 
 static int32_t mg_fc_kmer(int32_t len, const char *seq, int32_t rid, int32_t k, uint64_t *a)
 {
@@ -842,29 +836,37 @@ static void wf_cigar_push(void *km, wf_cigar_t *c, int32_t n_cigar, const uint32
 	c->n += n_cigar - 1;
 }
 
-static int32_t wf_anchor_filter(int32_t n, uint64_t *a, int32_t tl, int32_t ql)
+static int32_t wf_anchor_filter(int32_t n, uint64_t *a, int32_t tl, int32_t ql, int32_t k, int32_t min_l)
 {
-	int32_t i, m, x0, y0;
-	for (i = 0, x0 = y0 = 0; i < n; ++i) {
-		int32_t x2, y2, x1 = (int32_t)(a[i]>>32) + 1, y1 = (int32_t)a[i] + 1;
-		if (i + 1 == n) x2 = tl, y2 = ql;
-		else x2 = (int32_t)(a[i+1]>>32) + 1, y2 = (int32_t)a[i+1] + 1;
-		if (x1 - x0 != y1 - y0 && x2 - x1 != y2 - y1) a[i] = 0;
+	int32_t i, st, x0, y0, x1, y1, j, l, m;
+	for (i = 0, x0 = y0 = x1 = y1 = 0, st = -1, l = 0; i <= n; ++i) {
+		int32_t x, y;
+		if (i == n) x = tl, y = ql;
+		else x = (int32_t)(a[i]>>32) + 1, y = (int32_t)a[i] + 1;
+		if (x - x0 != y - y0) {
+			//fprintf(stderr, "(%d,%d) -> (%d,%d)\t%d\n", x0, y0, x, y, l);
+			if (l < min_l)
+				for (j = st > 0? st : 0; j < i; ++j)
+					a[j] = 0;
+			x0 = x, y0 = y, st = i, l = k;
+		} else l += x - x1;
+		x1 = x, y1 = y;
 	}
 	for (i = 0, m = 0; i < n; ++i)
 		if (a[i] != 0) a[m++] = a[i];
+	//fprintf(stderr, "%d -> %d\n", n, m);
 	return m;
 }
 
 void mwf_wfa_chaining(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
 {
-	int32_t k = 13, max_occ = 1;
+	int32_t k = 13, max_occ = 2;
 	int32_t n_a, i, x0, y0;
 	uint64_t *a;
 	wf_cigar_t c = {0,0,0};
 
 	a = mg_chain(km, tl, ts, ql, qs, k, max_occ, &n_a);
-	n_a = wf_anchor_filter(n_a, a, tl, ql);
+	n_a = wf_anchor_filter(n_a, a, tl, ql, k, k * 2);
 	r->s = 0;
 	for (i = 0, x0 = y0 = 0; i <= n_a; ++i) {
 		int32_t x1, y1;
@@ -882,6 +884,12 @@ void mwf_wfa_chaining(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts
 				wf_cigar_push(km, &c, q.n_cigar, q.cigar);
 			r->s += q.s;
 			km_destroy(km2);
+		} else if (x0 < x1) {
+			wf_cigar_push1(km, &c, 2, x1 - x0);
+			r->s += opt->o2 + (x1 - x0) * opt->e2 < opt->o1 + (x1 - x0) * opt->e1? opt->o2 + (x1 - x0) * opt->e2 : opt->o1 + (x1 - x0) * opt->e1;
+		} else if (y0 < y1) {
+			wf_cigar_push1(km, &c, 1, y1 - y0);
+			r->s += opt->o2 + (y1 - y0) * opt->e2 < opt->o1 + (y1 - y0) * opt->e1? opt->o2 + (y1 - y0) * opt->e2 : opt->o1 + (y1 - y0) * opt->e1;
 		}
 		x0 = x1, y0 = y1;
 	}

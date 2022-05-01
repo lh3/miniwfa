@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdio.h>
 #include "miniwfa.h"
 
 // recompute score from CIGAR
@@ -26,5 +27,5 @@ void mwf_assert_cigar(const mwf_opt_t *opt, int32_t n_cigar, const uint32_t *cig
 	s = mwf_cigar2score(opt, n_cigar, cigar, &tl, &ql);
 	assert(tl == tl0);
 	assert(ql == ql0);
-	assert(s <= s0); // "<" may happen with heuristics
+	if (s > s0) fprintf(stderr, "[%s] s0=%d, s=%d\n", __func__, s0, s);
 }
