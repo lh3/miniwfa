@@ -8,6 +8,23 @@ cd miniwfa && make test-mwf
 # use as a library
 cp miniwfa.{c,h} kalloc.{c,h} your_src/
 ```
+Sample C program for calling miniwfa:
+```c
+// compile with gcc -O3 this-prog.c miniwfa.c kalloc.c
+#include <string.h>
+#include <stdio.h>
+#include "miniwfa.h"
+int main(int argc, char *argv[]) {
+  mwf_opt_t opt;
+  mwf_rst_t r;
+  mwf_opt_init(&opt);
+  if (argc >= 3) {
+    mwf_wfa_auto(0, &opt, strlen(argv[1]), argv[1], strlen(argv[2]), argv[2], &r);
+    printf("%d\n", r.s);
+  }
+  return 0;
+}
+```
 
 ## Introduction
 
