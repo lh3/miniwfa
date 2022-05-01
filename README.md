@@ -22,7 +22,7 @@ mode. Miniwfa is much faster in the heuristic mode but it does not guarantee to
 find the optimal solution.
 
 Miniwfa can be used as a library. Here is a compilable sample program:
-```
+```cpp
 // compile with gcc -O3 this-prog.c miniwfa.c kalloc.c
 #include <string.h>
 #include <stdio.h>
