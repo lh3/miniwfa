@@ -45,7 +45,7 @@ depend:
 
 kalloc.o: kalloc.h
 main-wfa.o: ketopt.h kseq.h
-main.o: ketopt.h kalloc.h miniwfa.h kseq.h
+main.o: ketopt.h miniwfa.h kseq.h
 miniwfa.o: miniwfa.h kalloc.h
 mwf-dbg.o: miniwfa.h
-main-wfalm.o: lib/wfa_lm.hpp ketopt.h kseq.h
+main-wfalm.o: ketopt.h kseq.h
