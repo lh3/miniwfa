@@ -5,7 +5,6 @@
 #include <sys/resource.h>
 #include <sys/time.h>
 #include "ketopt.h"
-#include "kalloc.h"
 #include "miniwfa.h"
 #include "kseq.h"
 KSEQ_INIT(gzFile, gzread)
@@ -23,13 +22,12 @@ int main(int argc, char *argv[])
 	kseq_t *ks1, *ks2;
 	ketopt_t o = KETOPT_INIT;
 	mwf_opt_t opt;
-	int c, use_kalloc = 1, adap = 0;
+	int c, adap = 0;
 	double t;
-	void *km = 0;
 
 	mwf_opt_init(&opt);
 	while ((c = ketopt(&o, argc, argv, 1, "cKdep:aut", 0)) >= 0) {
-		if (o.opt == 'K') use_kalloc = !use_kalloc;
+		if (o.opt == 'K') opt.flag |= MWF_F_NO_KALLOC;
 		else if (o.opt == 'c') opt.flag |= MWF_F_CIGAR;
 		else if (o.opt == 'u') opt.flag |= MWF_F_CHAIN;
 		else if (o.opt == 'd') opt.flag |= MWF_F_DEBUG;
@@ -62,9 +60,8 @@ int main(int argc, char *argv[])
 	t = cputime();
 	while (kseq_read(ks1) >= 0 && kseq_read(ks2) >= 0) {
 		mwf_rst_t rst;
-		km = use_kalloc? km_init() : 0;
-		if (adap) mwf_wfa_auto(km, &opt, ks1->seq.l, ks1->seq.s, ks2->seq.l, ks2->seq.s, &rst);
-		else mwf_wfa(km, &opt, ks1->seq.l, ks1->seq.s, ks2->seq.l, ks2->seq.s, &rst);
+		if (adap) mwf_wfa_auto(0, &opt, ks1->seq.l, ks1->seq.s, ks2->seq.l, ks2->seq.s, &rst);
+		else mwf_wfa(0, &opt, ks1->seq.l, ks1->seq.s, ks2->seq.l, ks2->seq.s, &rst);
 		if (opt.flag & MWF_F_CIGAR) mwf_assert_cigar(&opt, rst.n_cigar, rst.cigar, ks1->seq.l, ks2->seq.l, rst.s);
 		printf("%s\t%ld\t0\t%ld\t+\t%s\t%ld\t0\t%ld\t%d", ks1->name.s, ks1->seq.l, ks1->seq.l, ks2->name.s, ks2->seq.l, ks2->seq.l, rst.s);
 		if (opt.flag & MWF_F_CIGAR) {
@@ -75,8 +72,7 @@ int main(int argc, char *argv[])
 		}
 		putchar('\n');
 		fflush(stdout);
-		kfree(km, rst.cigar);
-		if (use_kalloc) km_destroy(km);
+		free(rst.cigar);
 		fprintf(stderr, "T\t%s\t%s\t%.3f\n", ks1->name.s, ks2->name.s, cputime() - t);
 		t = cputime();
 	}

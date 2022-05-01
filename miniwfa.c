@@ -396,14 +396,15 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 	int32_t max_pen, sid, is_tb = !!(opt->flag&MWF_F_CIGAR), last_state = 0, stopped = 0;
 	wf_stripe_t *wf;
 	wf_tb_t tb = {0,0,0};
-	void *km_tb;
+	void *km_tb, *km_st;
 
 	memset(r, 0, sizeof(*r));
 	km_tb = is_tb && !(opt->flag&MWF_F_NO_KALLOC)? km_init2(km, 0) : 0;
+	km_st = !(opt->flag&MWF_F_NO_KALLOC)? km_init2(km, 0) : 0;
 	max_pen = opt->x;
 	max_pen = max_pen > opt->o1 + opt->e1? max_pen : opt->o1 + opt->e1;
 	max_pen = max_pen > opt->o2 + opt->e2? max_pen : opt->o2 + opt->e2;
-	wf = wf_stripe_init(km, max_pen);
+	wf = wf_stripe_init(km_st, max_pen);
 	assert(pts);
 
 	sid = 0;
@@ -430,13 +431,14 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 		d = INT32_MAX;
 		if (is_tb && seg && sid < n_seg && seg[sid].s == wf->s)
 			d = seg[sid++].d;
-		wf_next_basic(km, km_tb, opt, tl, ql, wf, is_tb? &tb : 0, d);
+		wf_next_basic(km_st, km_tb, opt, tl, ql, wf, is_tb? &tb : 0, d);
 	}
 	r->s = stopped? -1 : wf->s;
 	if (is_tb && !stopped)
 		r->cigar = wf_traceback(km, opt, &tb, tl-1, pts, ql-1, pqs, last_state, &r->n_cigar);
+	if (km_st == 0) wf_stripe_destroy(km_st, wf);
+	else km_destroy(km_st);
 	km_destroy(km_tb);
-	wf_stripe_destroy(km, wf);
 	if (is_tb && !stopped)
 		r->cigar = krelocate(km, r->cigar, r->n_cigar * sizeof(*r->cigar));
 }
@@ -563,13 +565,15 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 	wf_sss_t sss = {0,0,0};
 	uint8_t *xbuf;
 	wf_chkpt_t *seg;
+	void *km_st;
 
+	km_st = !(opt->flag&MWF_F_NO_KALLOC)? km_init2(km, 0) : 0;
 	max_pen = opt->x;
 	max_pen = max_pen > opt->o1 + opt->e1? max_pen : opt->o1 + opt->e1;
 	max_pen = max_pen > opt->o2 + opt->e2? max_pen : opt->o2 + opt->e2;
-	xbuf = Kcalloc(km, uint8_t, tl + ql + 1);
-	wf = wf_stripe_init(km, max_pen);
-	sf = wf_stripe_init(km, max_pen);
+	xbuf = Kcalloc(km_st, uint8_t, tl + ql + 1);
+	wf = wf_stripe_init(km_st, max_pen);
+	sf = wf_stripe_init(km_st, max_pen);
 	assert(pts);
 
 	while (1) {
@@ -587,14 +591,16 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 		}
 		if (d <= p->hi) break;
 		if ((wf->s + 1) % opt->step == 0)
-			wf_snapshot(km, &sss, sf);
-		wf_next_seg(km, opt, tl, ql, xbuf, wf, sf);
+			wf_snapshot(km_st, &sss, sf);
+		wf_next_seg(km_st, opt, tl, ql, xbuf, wf, sf);
 	}
 	seg = wf_traceback_seg(km, &sss, last, &n_seg);
-	wf_snapshot_free(km, &sss);
-	wf_stripe_destroy(km, wf);
-	wf_stripe_destroy(km, sf);
-	kfree(km, xbuf);
+	if (km_st == 0) {
+		wf_snapshot_free(km_st, &sss);
+		wf_stripe_destroy(km_st, wf);
+		wf_stripe_destroy(km_st, sf);
+		kfree(km_st, xbuf);
+	} else km_destroy(km_st);
 
 	seg = krelocate(km, seg, n_seg * sizeof(*seg));
 	*n_seg_ = n_seg;
@@ -822,9 +828,11 @@ void mwf_wfa_chaining(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts
 {
 	int32_t n_a, i, x0, y0;
 	uint64_t *a;
+	void *km_wfa;
 	wf_cigar_t c = {0,0,0};
 
-	a = mg_chain(km, tl, ts, ql, qs, opt->kmer, opt->max_occ, &n_a);
+	km_wfa = !(opt->flag&MWF_F_NO_KALLOC)? km_init2(km, 0) : 0;
+	a = mg_chain(km_wfa, tl, ts, ql, qs, opt->kmer, opt->max_occ, &n_a);
 	n_a = wf_anchor_filter(n_a, a, tl, ql, opt->kmer, opt->min_len);
 	r->s = 0;
 	for (i = 0, x0 = y0 = 0; i <= n_a; ++i) {
@@ -836,13 +844,10 @@ void mwf_wfa_chaining(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts
 				wf_cigar_push1(km, &c, 7, x1 - x0);
 		} else if (x0 < x1 && y0 < y1) {
 			mwf_rst_t q;
-			void *km2;
-			km2 = !(opt->flag&MWF_F_NO_KALLOC)? km_init2(km, 0) : km;
-			mwf_wfa_exact(km2, opt, x1 - x0, &ts[x0], y1 - y0, &qs[y0], &q);
+			mwf_wfa_exact(km_wfa, opt, x1 - x0, &ts[x0], y1 - y0, &qs[y0], &q);
 			if (opt->flag&MWF_F_CIGAR)
 				wf_cigar_push(km, &c, q.n_cigar, q.cigar);
 			r->s += q.s;
-			km_destroy(km2);
 		} else if (x0 < x1) {
 			wf_cigar_push1(km, &c, 2, x1 - x0);
 			r->s += opt->o2 + (x1 - x0) * opt->e2 < opt->o1 + (x1 - x0) * opt->e1? opt->o2 + (x1 - x0) * opt->e2 : opt->o1 + (x1 - x0) * opt->e1;
@@ -852,7 +857,8 @@ void mwf_wfa_chaining(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts
 		}
 		x0 = x1, y0 = y1;
 	}
-	kfree(km, a);
+	if (km_wfa == 0) kfree(km_wfa, a);
+	km_destroy(km_wfa);
 	r->n_cigar = c.n, r->cigar = c.cigar;
 	r->cigar = krelocate(km, r->cigar, r->n_cigar * sizeof(*r->cigar));
 }
