@@ -8,8 +8,21 @@ cd miniwfa && make test-mwf
 # use as a library
 cp miniwfa.{c,h} kalloc.{c,h} your_src/
 ```
-Sample C program for calling miniwfa:
-```c
+
+## Introduction
+
+Miniwfa is a reimplementation of the WaveFront Alignment algorithm
+([WFA][wfa-pub]) with dual gap penalty. For long diverged sequences, the
+original WFA is slow and memory hungry. Miniwfa introduces a low-memory mode
+and a chaining heuristic to address these issues.
+
+Miniwfa was developed in parallel to the linear-space [BiWFA][biwfa] algorithm.
+Now BiWFA uses less memory and is generally faster than miniwfa in the exact
+mode. Miniwfa is much faster in the heuristic mode but it does not guarantee to
+find the optimal solution.
+
+Miniwfa can be used as a library. Here is a compilable sample program:
+```
 // compile with gcc -O3 this-prog.c miniwfa.c kalloc.c
 #include <string.h>
 #include <stdio.h>
@@ -25,14 +38,6 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 ```
-
-## Introduction
-
-Miniwfa is a reimplementation of the WaveFront Alignment algorithm
-([WFA][wfa-pub]) with 2-piece gap penalty. It was faster than WFA2-lib when
-miniwfa was first developed. Now the linear-space [BiWFA][biwfa] algorithm
-consistently uses less memory, though the relative performance between miniwfa
-and BiWFA varies with input sequences.
 
 ## Algorithm
 
@@ -57,6 +62,9 @@ the optimal alignment penalty, *p* is the distance between stripes and
 *q*=max(*x*,*o*<sub>1</sub>+*e*<sub>1</sub>,*o*<sub>2</sub>+*e*<sub>2</sub>)
 is the maximal penalty between adjacent entries. The time complexity is
 *O*(*n*(*s*+*p*)) where *n* is the length of the longer sequence.
+
+In the heuristic mode, miniwfa chains low-occurrence k-mers and fills gaps in
+the chain with the exact algorithm.
 
 ## Vectorization
 
