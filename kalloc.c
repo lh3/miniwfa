@@ -184,6 +184,16 @@ void *krealloc(void *_km, void *ap, size_t n_bytes) // TODO: this can be made mo
 	return q;
 }
 
+void *krelocate(void *km, void *ap, size_t n_bytes)
+{
+	void *p;
+	if (km == 0) return ap;
+	p = kmalloc(km, n_bytes);
+	memcpy(p, ap, n_bytes);
+	kfree(km, ap);
+	return p;
+}
+
 void km_stat(const void *_km, km_stat_t *s)
 {
 	kmem_t *km = (kmem_t*)_km;

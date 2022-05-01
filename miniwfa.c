@@ -399,7 +399,7 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 	void *km_tb;
 
 	memset(r, 0, sizeof(*r));
-	km_tb = is_tb? km_init2(km, 0) : 0; // this is slightly smaller than the kalloc block size
+	km_tb = is_tb && !(opt->flag&MWF_F_NO_KALLOC)? km_init2(km, 0) : 0;
 	max_pen = opt->x;
 	max_pen = max_pen > opt->o1 + opt->e1? max_pen : opt->o1 + opt->e1;
 	max_pen = max_pen > opt->o2 + opt->e2? max_pen : opt->o2 + opt->e2;
@@ -433,12 +433,12 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 		wf_next_basic(km, km_tb, opt, tl, ql, wf, is_tb? &tb : 0, d);
 	}
 	r->s = stopped? -1 : wf->s;
-	if (km && (opt->flag&MWF_F_DEBUG)) km_stat_print(km);
-	if (is_tb && !stopped) {
+	if (is_tb && !stopped)
 		r->cigar = wf_traceback(km, opt, &tb, tl-1, pts, ql-1, pqs, last_state, &r->n_cigar);
-		km_destroy(km_tb);
-	}
+	km_destroy(km_tb);
 	wf_stripe_destroy(km, wf);
+	if (is_tb && !stopped)
+		r->cigar = krelocate(km, r->cigar, r->n_cigar * sizeof(*r->cigar));
 }
 
 /*
@@ -562,7 +562,7 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 	wf_stripe_t *wf, *sf;
 	wf_sss_t sss = {0,0,0};
 	uint8_t *xbuf;
-	wf_chkpt_t *seg, *tmp;
+	wf_chkpt_t *seg;
 
 	max_pen = opt->x;
 	max_pen = max_pen > opt->o1 + opt->e1? max_pen : opt->o1 + opt->e1;
@@ -591,16 +591,12 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 		wf_next_seg(km, opt, tl, ql, xbuf, wf, sf);
 	}
 	seg = wf_traceback_seg(km, &sss, last, &n_seg);
-	if (km && (opt->flag&MWF_F_DEBUG)) km_stat_print(km);
 	wf_snapshot_free(km, &sss);
 	wf_stripe_destroy(km, wf);
 	wf_stripe_destroy(km, sf);
 	kfree(km, xbuf);
 
-	tmp = seg;
-	seg = Kmalloc(km, wf_chkpt_t, n_seg); // this is to reduce memory fragmentation
-	memcpy(seg, tmp, n_seg * sizeof(*seg));
-	kfree(km, tmp);
+	seg = krelocate(km, seg, n_seg * sizeof(*seg));
 	*n_seg_ = n_seg;
 	return seg;
 }
@@ -810,7 +806,6 @@ static int32_t wf_anchor_filter(int32_t n, uint64_t *a, int32_t tl, int32_t ql, 
 		if (i == n) x = tl, y = ql;
 		else x = (int32_t)(a[i]>>32) + 1, y = (int32_t)a[i] + 1;
 		if (x - x0 != y - y0) {
-			//fprintf(stderr, "(%d,%d) -> (%d,%d)\t%d\n", x0, y0, x, y, l);
 			if (l < min_l)
 				for (j = st > 0? st : 0; j < i; ++j)
 					a[j] = 0;
@@ -820,7 +815,6 @@ static int32_t wf_anchor_filter(int32_t n, uint64_t *a, int32_t tl, int32_t ql, 
 	}
 	for (i = 0, m = 0; i < n; ++i)
 		if (a[i] != 0) a[m++] = a[i];
-	//fprintf(stderr, "%d -> %d\n", n, m);
 	return m;
 }
 
@@ -843,7 +837,7 @@ void mwf_wfa_chaining(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts
 		} else if (x0 < x1 && y0 < y1) {
 			mwf_rst_t q;
 			void *km2;
-			km2 = km_init2(km, 0);
+			km2 = !(opt->flag&MWF_F_NO_KALLOC)? km_init2(km, 0) : km;
 			mwf_wfa_exact(km2, opt, x1 - x0, &ts[x0], y1 - y0, &qs[y0], &q);
 			if (opt->flag&MWF_F_CIGAR)
 				wf_cigar_push(km, &c, q.n_cigar, q.cigar);
@@ -860,10 +854,26 @@ void mwf_wfa_chaining(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts
 	}
 	kfree(km, a);
 	r->n_cigar = c.n, r->cigar = c.cigar;
+	r->cigar = krelocate(km, r->cigar, r->n_cigar * sizeof(*r->cigar));
 }
 
 void mwf_wfa(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
 {
 	if (opt->flag & MWF_F_CHAIN) mwf_wfa_chaining(km, opt, tl, ts, ql, qs, r);
 	else mwf_wfa_exact(km, opt, tl, ts, ql, qs, r);
+}
+
+void mwf_wfa_auto(void *km, const mwf_opt_t *opt0, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
+{
+	mwf_opt_t opt = *opt0;
+	opt.flag &= ~MWF_F_CHAIN;
+	opt.step = 0;
+	if (tl >= 200 && ql >= 200) opt.s_stop = 5000;
+	mwf_wfa_exact(km, &opt, tl, ts, ql, qs, r);
+	if (r->s < 0) {
+		opt.flag |= MWF_F_CHAIN;
+		if (opt.flag & MWF_F_CIGAR) opt.step = 5000;
+		opt.s_stop = -1;
+		mwf_wfa_chaining(km, &opt, tl, ts, ql, qs, r);
+	}
 }

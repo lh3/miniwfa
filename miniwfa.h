@@ -29,9 +29,10 @@
 
 #include <stdint.h>
 
-#define MWF_F_CIGAR    0x1
-#define MWF_F_CHAIN    0x2
-#define MWF_F_DEBUG    0x100
+#define MWF_F_CIGAR      0x1
+#define MWF_F_CHAIN      0x2
+#define MWF_F_NO_KALLOC  0x4
+#define MWF_F_DEBUG      0x10000
 
 typedef struct {
 	int32_t flag; // bit flag; see MWF_F_* macros
@@ -71,8 +72,7 @@ void mwf_opt_init(mwf_opt_t *opt);
  * @param r       (out) results
  */
 void mwf_wfa(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r);
-
-void mwf_wfa_heuristic(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r);
+void mwf_wfa_auto(void *km, const mwf_opt_t *opt0, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r);
 
 // These functions are in "mwf-dbg.c". For debugging only.
 int32_t mwf_cigar2score(const mwf_opt_t *opt, int32_t n_cigar, const uint32_t *cigar, int32_t *tl, int32_t *ql);

@@ -13,6 +13,7 @@ typedef struct {
 
 void *kmalloc(void *km, size_t size);
 void *krealloc(void *km, void *ptr, size_t size);
+void *krelocate(void *km, void *ap, size_t n_bytes);
 void *kcalloc(void *km, size_t count, size_t size);
 void kfree(void *km, void *ptr);
 
