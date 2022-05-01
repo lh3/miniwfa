@@ -40,7 +40,8 @@ void *km_init2(void *km_par, size_t min_core_size)
 	kmem_t *km;
 	km = (kmem_t*)kcalloc(km_par, 1, sizeof(kmem_t));
 	km->par = km_par;
-	km->min_core_size = min_core_size > 0? min_core_size : 0x80000;
+	if (km_par) km->min_core_size = min_core_size > 0? min_core_size : ((kmem_t*)km_par)->min_core_size - 2;
+	else km->min_core_size = min_core_size > 0? min_core_size : 0x80000;
 	return (void*)km;
 }
 

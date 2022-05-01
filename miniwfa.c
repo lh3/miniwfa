@@ -429,7 +429,7 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 	void *km_tb;
 
 	memset(r, 0, sizeof(*r));
-	km_tb = is_tb? km_init2(km, 8000000) : 0; // this is slightly smaller than the kalloc block size
+	km_tb = is_tb? km_init2(km, 0) : 0; // this is slightly smaller than the kalloc block size
 	max_pen = opt->x;
 	max_pen = max_pen > opt->o1 + opt->e1? max_pen : opt->o1 + opt->e1;
 	max_pen = max_pen > opt->o2 + opt->e2? max_pen : opt->o2 + opt->e2;
@@ -864,10 +864,14 @@ void mwf_wfa_chaining(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts
 				wf_cigar_push1(km, &c, 7, x1 - x0);
 		} else {
 			mwf_rst_t q;
-			mwf_wfa_exact(km, opt, x1 - x0, &ts[x0], y1 - y0, &qs[y0], &q);
+			void *km2;
+			km2 = km_init2(km, 0);
+			//fprintf(stderr, "X\t%d\t%d\t%d\t%d\n", x1, y1, x1 - x0, y1 - y0); km_stat_print(km);
+			mwf_wfa_exact(km2, opt, x1 - x0, &ts[x0], y1 - y0, &qs[y0], &q);
 			if (opt->flag&MWF_F_CIGAR)
 				wf_cigar_push(km, &c, q.n_cigar, q.cigar);
 			r->s += q.s;
+			km_destroy(km2);
 		}
 		x0 = x1, y0 = y1;
 	}
