@@ -2,7 +2,7 @@
 #include <zlib.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "lib/wfa_lm.hpp"
+#include "wfa_lm.hpp"
 #include "ketopt.h"
 #include "kseq.h"
 KSEQ_INIT(gzFile, gzread)
