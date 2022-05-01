@@ -16,6 +16,7 @@ void mwf_opt_init(mwf_opt_t *opt)
 	opt->o2 = 15, opt->e2 = 1;
 	opt->max_width = 1000;
 	opt->max_lag = -1;
+	opt->kmer = 13, opt->max_occ = 2;
 }
 
 /*
@@ -860,19 +861,18 @@ static int32_t wf_anchor_filter(int32_t n, uint64_t *a, int32_t tl, int32_t ql, 
 
 void mwf_wfa_chaining(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
 {
-	int32_t k = 13, max_occ = 2;
 	int32_t n_a, i, x0, y0;
 	uint64_t *a;
 	wf_cigar_t c = {0,0,0};
 
-	a = mg_chain(km, tl, ts, ql, qs, k, max_occ, &n_a);
-	n_a = wf_anchor_filter(n_a, a, tl, ql, k, k * 2);
+	a = mg_chain(km, tl, ts, ql, qs, opt->kmer, opt->max_occ, &n_a);
+	n_a = wf_anchor_filter(n_a, a, tl, ql, opt->kmer, opt->kmer * 2);
 	r->s = 0;
 	for (i = 0, x0 = y0 = 0; i <= n_a; ++i) {
 		int32_t x1, y1;
 		if (i == n_a) x1 = tl, y1 = ql;
 		else x1 = (int32_t)(a[i]>>32) + 1, y1 = (int32_t)a[i] + 1;
-		if (i < n_a && x1 - x0 == y1 - y0 && x1 - x0 <= k) {
+		if (i < n_a && x1 - x0 == y1 - y0 && x1 - x0 <= opt->kmer) {
 			if (opt->flag&MWF_F_CIGAR)
 				wf_cigar_push1(km, &c, 7, x1 - x0);
 		} else if (x0 < x1 && y0 < y1) {
