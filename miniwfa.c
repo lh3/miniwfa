@@ -625,11 +625,7 @@ wf_chkpt_t *mwf_wfa_seg(void *km, const mwf_opt_t *opt, int32_t tl, const char *
 			wf_prune(opt, tl, ql, wf);
 	}
 	seg = wf_traceback_seg(km, &sss, last, &n_seg);
-	if (km && (opt->flag&MWF_F_DEBUG)) {
-		km_stat_t st;
-		km_stat(km, &st);
-		fprintf(stderr, "tl=%d, ql=%d, cap=%ld, avail=%ld, n_blks=%ld\n", tl, ql, st.capacity, st.available, st.n_blocks);
-	}
+	if (km && (opt->flag&MWF_F_DEBUG)) km_stat_print(km);
 	wf_snapshot_free(km, &sss);
 	wf_stripe_destroy(km, wf);
 	wf_stripe_destroy(km, sf);
@@ -846,6 +842,20 @@ static void wf_cigar_push(void *km, wf_cigar_t *c, int32_t n_cigar, const uint32
 	c->n += n_cigar - 1;
 }
 
+static int32_t wf_anchor_filter(int32_t n, uint64_t *a, int32_t tl, int32_t ql)
+{
+	int32_t i, m, x0, y0;
+	for (i = 0, x0 = y0 = 0; i < n; ++i) {
+		int32_t x2, y2, x1 = (int32_t)(a[i]>>32) + 1, y1 = (int32_t)a[i] + 1;
+		if (i + 1 == n) x2 = tl, y2 = ql;
+		else x2 = (int32_t)(a[i+1]>>32) + 1, y2 = (int32_t)a[i+1] + 1;
+		if (x1 - x0 != y1 - y0 && x2 - x1 != y2 - y1) a[i] = 0;
+	}
+	for (i = 0, m = 0; i < n; ++i)
+		if (a[i] != 0) a[m++] = a[i];
+	return m;
+}
+
 void mwf_wfa_chaining(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
 {
 	int32_t k = 13, max_occ = 1;
@@ -854,19 +864,19 @@ void mwf_wfa_chaining(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts
 	wf_cigar_t c = {0,0,0};
 
 	a = mg_chain(km, tl, ts, ql, qs, k, max_occ, &n_a);
+	n_a = wf_anchor_filter(n_a, a, tl, ql);
 	r->s = 0;
 	for (i = 0, x0 = y0 = 0; i <= n_a; ++i) {
 		int32_t x1, y1;
 		if (i == n_a) x1 = tl, y1 = ql;
 		else x1 = (int32_t)(a[i]>>32) + 1, y1 = (int32_t)a[i] + 1;
-		if (x1 - x0 == y1 - y0 && x1 - x0 <= k) {
+		if (i < n_a && x1 - x0 == y1 - y0 && x1 - x0 <= k) {
 			if (opt->flag&MWF_F_CIGAR)
 				wf_cigar_push1(km, &c, 7, x1 - x0);
-		} else {
+		} else if (x0 < x1 && y0 < y1) {
 			mwf_rst_t q;
 			void *km2;
 			km2 = km_init2(km, 0);
-			//fprintf(stderr, "X\t%d\t%d\t%d\t%d\n", x1, y1, x1 - x0, y1 - y0); km_stat_print(km);
 			mwf_wfa_exact(km2, opt, x1 - x0, &ts[x0], y1 - y0, &qs[y0], &q);
 			if (opt->flag&MWF_F_CIGAR)
 				wf_cigar_push(km, &c, q.n_cigar, q.cigar);
@@ -875,6 +885,7 @@ void mwf_wfa_chaining(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts
 		}
 		x0 = x1, y0 = y1;
 	}
+	kfree(km, a);
 	r->n_cigar = c.n, r->cigar = c.cigar;
 }
 
