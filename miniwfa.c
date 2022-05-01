@@ -824,7 +824,7 @@ static int32_t wf_anchor_filter(int32_t n, uint64_t *a, int32_t tl, int32_t ql, 
 	return m;
 }
 
-void mwf_wfa_chaining(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
+void mwf_wfa_chain(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
 {
 	int32_t n_a, i, x0, y0;
 	uint64_t *a;
@@ -863,23 +863,15 @@ void mwf_wfa_chaining(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts
 	r->cigar = krelocate(km, r->cigar, r->n_cigar * sizeof(*r->cigar));
 }
 
-void mwf_wfa(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
-{
-	if (opt->flag & MWF_F_CHAIN) mwf_wfa_chaining(km, opt, tl, ts, ql, qs, r);
-	else mwf_wfa_exact(km, opt, tl, ts, ql, qs, r);
-}
-
 void mwf_wfa_auto(void *km, const mwf_opt_t *opt0, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
 {
 	mwf_opt_t opt = *opt0;
-	opt.flag &= ~MWF_F_CHAIN;
 	opt.step = 0;
 	if (tl >= 200 && ql >= 200) opt.s_stop = 5000;
 	mwf_wfa_exact(km, &opt, tl, ts, ql, qs, r);
 	if (r->s < 0) {
-		opt.flag |= MWF_F_CHAIN;
 		if (opt.flag & MWF_F_CIGAR) opt.step = 5000;
 		opt.s_stop = -1;
-		mwf_wfa_chaining(km, &opt, tl, ts, ql, qs, r);
+		mwf_wfa_chain(km, &opt, tl, ts, ql, qs, r);
 	}
 }
