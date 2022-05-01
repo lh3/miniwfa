@@ -848,6 +848,7 @@ void mwf_wfa_chain(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, i
 			if (opt->flag&MWF_F_CIGAR)
 				wf_cigar_push(km, &c, q.n_cigar, q.cigar);
 			r->s += q.s;
+			kfree(km_wfa, q.cigar);
 		} else if (x0 < x1) {
 			wf_cigar_push1(km, &c, 2, x1 - x0);
 			r->s += opt->o2 + (x1 - x0) * opt->e2 < opt->o1 + (x1 - x0) * opt->e1? opt->o2 + (x1 - x0) * opt->e2 : opt->o1 + (x1 - x0) * opt->e1;
