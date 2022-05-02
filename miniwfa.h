@@ -62,6 +62,14 @@ void mwf_opt_init(mwf_opt_t *opt);
 /**
  * Align two sequences with WFA
  *
+ * mwf_wfa_exact() finds the optimal alignment without heuristics.
+ *
+ * mwf_wfa_chain() does chaining and closes gaps in the chain. This is a
+ * heuristic algorithm and may miss the optimal alignment.
+ *
+ * mwf_wfa_auto() calls mwf_wfa_exact() for penalty up to 5000. If fails,
+ * it invokes mwf_wfa_chain() with a step size of 5000.
+ *
  * @param km      kalloc handler. Set to NULL to use malloc.
  * @param opt     parameters
  * @param tl      target sequence length
