@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
 	double t;
 
 	mwf_opt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "cKdep:autl:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "cKdep:autl:f:", 0)) >= 0) {
 		if (o.opt == 'K') opt.flag |= MWF_F_NO_KALLOC;
 		else if (o.opt == 'c') opt.flag |= MWF_F_CIGAR;
 		else if (o.opt == 'd') opt.flag |= MWF_F_DEBUG;
@@ -34,6 +34,7 @@ int main(int argc, char *argv[])
 		else if (o.opt == 'a') opt.o2 = opt.o1, opt.e2 = opt.e1;
 		else if (o.opt == 'e') opt.x = 1, opt.o1 = opt.o2 = 0, opt.e1 = opt.e2 = 1;
 		else if (o.opt == 'l') opt.min_len = atoi(o.arg);
+		else if (o.opt == 'f') opt.max_occ = atoi(o.arg);
 		else if (o.opt == 'u') mode = 1; // chaining mode
 		else if (o.opt == 't') mode = 2; // auto mode
 		else if (1) {
@@ -49,6 +50,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "  -u       apply the chaining heuristic\n");
 		fprintf(stderr, "  -t       automatically choose between the exact and the chaining mode\n");
 		fprintf(stderr, "  -l INT   min gapless length for chain filtering [%d]\n", opt.min_len);
+		fprintf(stderr, "  -f INT   max k-mer occurrence [%d]\n", opt.max_occ);
 		fprintf(stderr, "  -a       mimic affine gap\n");
 		fprintf(stderr, "  -e       mimic edit distance\n");
 		fprintf(stderr, "  -K       disable the kalloc allocator\n");
