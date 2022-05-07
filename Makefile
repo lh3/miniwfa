@@ -12,7 +12,7 @@ WFA_ROOT=BiWFA-paper
 
 ifneq ($(asan),)
 	CFLAGS+=-fsanitize=address
-	LIBS+=-fsanitize=address
+	LIBS+=-fsanitize=address -ldl
 endif
 
 .SUFFIXES:.c .cpp .o
