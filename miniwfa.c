@@ -410,10 +410,6 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 			H[d] = k;
 		}
 		if (d <= p->hi) break;
-		if (opt->s_stop > 0 && wf->s + 1 > opt->s_stop) {
-			stopped = 1;
-			break;
-		}
 		if (is_tb && seg && sid < n_seg && seg[sid].s == wf->s) {
 			assert(seg[sid].d >= wf->lo && seg[sid].d <= wf->hi);
 			wf->lo = wf->hi = seg[sid++].d;
@@ -422,6 +418,11 @@ static void mwf_wfa_core(void *km, const mwf_opt_t *opt, int32_t tl, const char 
 		hi = wf->hi <  ql? wf->hi + 1 :  ql;
 		wf_next_basic(km_st, km_tb, opt, wf, is_tb? &tb : 0, lo, hi);
 		if ((wf->s&0xff) == 0) wf_stripe_shrink(wf, tl, ql);
+		r->n_iter += hi - lo + 1;
+		if ((opt->max_iter > 0 && r->n_iter > opt->max_iter) || (opt->max_s > 0 && wf->s > opt->max_s)) {
+			stopped = 1;
+			break;
+		}
 	}
 	r->s = stopped? -1 : wf->s;
 	if (is_tb && !stopped)
@@ -897,12 +898,11 @@ void mwf_wfa_chain(void *km, const mwf_opt_t *opt, int32_t tl, const char *ts, i
 void mwf_wfa_auto(void *km, const mwf_opt_t *opt0, int32_t tl, const char *ts, int32_t ql, const char *qs, mwf_rst_t *r)
 {
 	mwf_opt_t opt = *opt0;
-	opt.step = 0;
-	if (tl >= 200 && ql >= 200) opt.s_stop = 5000;
+	opt.step = 0, opt.max_iter = 100000000;
 	mwf_wfa_exact(km, &opt, tl, ts, ql, qs, r);
 	if (r->s < 0) {
 		if (opt.flag & MWF_F_CIGAR) opt.step = 5000;
-		opt.s_stop = -1;
+		opt.max_iter = -1;
 		mwf_wfa_chain(km, &opt, tl, ts, ql, qs, r);
 	}
 }
