@@ -105,14 +105,18 @@ I got the following notes wrong a few times. Please let me know if you found
 the narrative is still inaccurate.
 
 Given a pair of strings, let *n* be the length of the longer string and *d* is
-their edit distance. Ukkonen first found the *O*(*nd*) algorithm to compute
-edit distances in 1983 and [published it in 1985][U85a]. Myers independently
-published the same algorithm [in 1986][myers86]. He additionally introduced a
-few variations including a linear-space algorithm based on the [Hirschberg's
-algorithm][lin-space]. Sometimes the *O*(*nd*) algorithm is also attributed to
-[Landau and Vishkin (1989)][lv89]. I don't know if the two authors were aware
-of Ukkonen's work at the time of submission in 1986, but they did cite
-Ukkonen (1985) in their published paper.
+the edit distance between the two strings. Ukkonen found the *O*(*nd*)
+algorithm to compute edit distances in 1983 and [published it in 1985][U85a].
+Myers independently conceived the same algorithm [in 1984][myers-comment] and
+published it [in 1986][myers86]. He additionally introduced a few variations
+including a linear-space algorithm with forward and reverse search.
+It is essentially BiWFA under edit distance. The idea of "wave" was implicit in
+Myers' 1986 paper. [His 2014 paper][dalign] explicitly explained "wave".
+
+Sometimes the *O*(*nd*) algorithm is also attributed to [Landau and Vishkin
+(1989)][lv89]. I don't know if Landau and Vishkin were aware of Ukkonen's work
+at the time of submission in 1986, but their published paper in 1989 did cite
+Ukkonen (1985).
 
 The search for a similar algorithm for linear or affine gap penalties took
 three decades. To the best of my knowledge, [Xin et al (2017)][leap] first
@@ -151,3 +155,5 @@ threshold. This algorithm guarantees to find the edit distance *d* if
 [myers-bit]: https://dl.acm.org/doi/10.1145/316542.316550
 [EP22]: https://www.biorxiv.org/content/10.1101/2022.01.12.476087v1
 [lv89]: https://doi.org/10.1016/0196-6774(89)90010-2
+[myers-comment]: https://github.com/lh3/miniwfa/issues/4#issue-2306751524
+[dalign]: https://link.springer.com/chapter/10.1007/978-3-662-44753-6_5
